@@ -1,0 +1,22 @@
+{
+  "name": "aninexus",
+  "version": "0.1.0",
+  "private": true,
+  "packageManager": "pnpm@11.19.0",
+  "engines": {
+    "node": ">=22 <26",
+    "pnpm": ">=11 <12"
+  },
+  "scripts": {
+    "dev": "pnpm --filter @aninexus/web dev",
+    "build": "pnpm --filter @aninexus/web build",
+    "lint": "pnpm --filter @aninexus/web lint",
+    "typecheck": "pnpm --filter @aninexus/web typecheck",
+    "test": "pnpm --filter @aninexus/web test",
+    "format": "prettier --write .",
+    "format:check": "prettier --check ."
+  },
+  "devDependencies": {
+    "prettier": "^3.8.1"
+  }
+}

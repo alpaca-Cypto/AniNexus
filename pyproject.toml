@@ -1,0 +1,47 @@
+[project]
+name = "aninexus-workspace"
+version = "0.1.0"
+description = "AniNexus monorepo development workspace"
+requires-python = ">=3.12,<3.13"
+
+[dependency-groups]
+dev = [
+    "httpx>=0.28.1,<1",
+    "pre-commit>=4.5.1,<5",
+    "pyright>=1.1.408,<2",
+    "pytest>=9.0.2,<10",
+    "pytest-asyncio>=1.3.0,<2",
+    "ruff>=0.15.0,<1",
+]
+
+[tool.uv]
+package = false
+
+[tool.uv.workspace]
+members = ["apps/api"]
+
+[tool.pytest.ini_options]
+addopts = "-ra --strict-config --strict-markers"
+pythonpath = ["apps/api"]
+testpaths = ["apps/api/tests", "tests"]
+
+[tool.ruff]
+target-version = "py312"
+line-length = 100
+extend-exclude = [".venv", ".uv-cache"]
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "UP", "B", "SIM", "RUF"]
+
+[tool.ruff.format]
+quote-style = "double"
+indent-style = "space"
+
+[tool.pyright]
+pythonVersion = "3.12"
+typeCheckingMode = "strict"
+include = ["apps/api/app", "apps/api/tests"]
+exclude = [".venv"]
+venvPath = "."
+venv = ".venv"
+executionEnvironments = [{ root = "apps/api" }]

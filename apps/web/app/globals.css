@@ -1,0 +1,153 @@
+@import "tailwindcss";
+
+:root {
+  color-scheme: dark;
+  --background: #080a0f;
+  --surface: #11151d;
+  --line: #293141;
+  --text: #f7f8fb;
+  --muted: #9aa5b5;
+  --accent: #8cffc1;
+  --warning: #ffcc66;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html {
+  background: var(--background);
+}
+
+body {
+  min-height: 100vh;
+  margin: 0;
+  color: var(--text);
+  background:
+    radial-gradient(circle at 80% 10%, rgb(80 96 255 / 18%), transparent 30rem),
+    linear-gradient(135deg, #080a0f 0%, #0b1018 100%);
+  font-family: Arial, "PingFang SC", "Microsoft YaHei", sans-serif;
+}
+
+.shell {
+  width: min(1120px, calc(100% - 40px));
+  min-height: 100vh;
+  margin: 0 auto;
+  padding: 80px 0;
+}
+
+.hero {
+  display: grid;
+  min-height: 54vh;
+  align-content: center;
+  border-top: 1px solid var(--line);
+}
+
+.eyebrow,
+.section-index {
+  color: var(--accent);
+  font-family: Consolas, monospace;
+  font-size: 0.78rem;
+  letter-spacing: 0.16em;
+}
+
+h1 {
+  margin: 18px 0 0;
+  font-size: clamp(4rem, 15vw, 10rem);
+  font-weight: 750;
+  letter-spacing: -0.08em;
+  line-height: 0.8;
+}
+
+.subtitle {
+  margin: 22px 0 0;
+  color: var(--accent);
+  font-size: clamp(1.4rem, 4vw, 2.4rem);
+  letter-spacing: 0.3em;
+}
+
+.description {
+  max-width: 660px;
+  margin: 32px 0 0;
+  color: var(--muted);
+  font-size: clamp(1rem, 2vw, 1.2rem);
+  line-height: 1.8;
+}
+
+.status {
+  display: inline-flex;
+  width: fit-content;
+  align-items: center;
+  gap: 10px;
+  margin-top: 32px;
+  padding: 10px 14px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: rgb(17 21 29 / 75%);
+  color: var(--muted);
+  font-size: 0.85rem;
+}
+
+.status-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--warning);
+}
+
+.status[data-state="online"] .status-dot {
+  background: var(--accent);
+  box-shadow: 0 0 16px var(--accent);
+}
+
+.status[data-state="offline"] .status-dot {
+  background: #ff7185;
+}
+
+.foundation {
+  display: grid;
+  grid-template-columns: minmax(180px, 0.8fr) 2fr;
+  gap: 40px;
+  padding: 48px 0;
+  border-top: 1px solid var(--line);
+  border-bottom: 1px solid var(--line);
+}
+
+.foundation h2 {
+  margin: 8px 0 0;
+  font-size: 1.75rem;
+}
+
+.foundation ul {
+  display: grid;
+  gap: 0;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.foundation li {
+  padding: 18px 0;
+  border-top: 1px solid var(--line);
+  color: var(--muted);
+}
+
+.foundation li:last-child {
+  border-bottom: 1px solid var(--line);
+}
+
+@media (max-width: 680px) {
+  .shell {
+    width: min(100% - 28px, 1120px);
+    padding: 36px 0;
+  }
+
+  .hero {
+    min-height: 60vh;
+  }
+
+  .foundation {
+    grid-template-columns: 1fr;
+    gap: 24px;
+  }
+}
