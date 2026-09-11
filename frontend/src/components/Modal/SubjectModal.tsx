@@ -5,7 +5,6 @@ import { useAppTheme } from '@/components/providers/LobeProvider';
 import SubjectForm from './form/SubjectForm';
 import SmartSubscriptionModal from './SmartSubscriptionModal';
 import { FormData } from './types';
-import { collectionService } from '@/services/collections';
 
 interface SubjectModalProps {
   isOpen: boolean;
@@ -15,7 +14,6 @@ interface SubjectModalProps {
 
 const SubjectModal = ({ isOpen, onClose, initialValues }: SubjectModalProps) => {
   const { isDarkMode } = useAppTheme();
-  const [loading, setLoading] = useState(false);
   const [isSubscriptionModalOpen, setIsSubscriptionModalOpen] = useState(false);
   const [subscriptionData, setSubscriptionData] = useState<any>(null);
   
@@ -105,49 +103,23 @@ const SubjectModal = ({ isOpen, onClose, initialValues }: SubjectModalProps) => 
     setFormData(parsedData);
   }, [initialValues]);
 
-  const handleOk = async () => {
+  const handleOk = () => {
     try {
-      setLoading(true);
-
-      // 构建请求数据
-      const requestData = {
-        data: [{
-          subject: formData.subject,
-          collection: {
-            type: formData.collectionType || 2, // 默认值为"看过"
-            rate: formData.rate,
-            comment: formData.comment,
-            vol_status: formData.volStatus,
-            ep_status: formData.epStatus,
-            tags: formData.tags
-          }
-        }]
-      };
-
-      // 调用后端 API
-      const result = await collectionService.uploadDouban(requestData);
-
-      // 显示成功通知
+      localStorage.setItem(`aninexus-demo-subject-${formData.subject.id}`, JSON.stringify(formData));
       toast.success({
-        title: '上传成功',
-        description: `成功导入 ${result.sync_count} 条数据`,
+        title: '已保存到浏览器',
+        description: '这份条目修改仅用于当前前端演示。',
         icon: CheckCircle2,
         duration: 3000,
       });
-
-      // 关闭模态框
       onClose();
-    } catch (error) {
-      console.error('Upload error:', error);
-      // 显示错误通知
+    } catch {
       toast.error({
-        title: '上传失败',
-        description: error instanceof Error ? error.message : '上传失败，请重试',
+        title: '保存失败',
+        description: '浏览器无法保存这份演示数据。',
         icon: XCircle,
         duration: 3000,
       });
-    } finally {
-      setLoading(false);
     }
   };
 
@@ -217,11 +189,10 @@ const SubjectModal = ({ isOpen, onClose, initialValues }: SubjectModalProps) => 
         title="条目详情"
         onCancel={onClose}
         onOk={handleOk}
-        okText={loading ? "处理中..." : "更新/上传"}
+        okText="保存到浏览器"
         cancelText="取消"
         centered
         width={700}
-        okButtonProps={{ loading }}
         destroyOnHidden
       >
         <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>

@@ -2,11 +2,10 @@
 
 import {Header} from './Header';
 import { useAppTheme } from '@/components/providers/LobeProvider';
-import SearchBar, { createDebouncedSearch } from './SearchBar';
-import { Button, Popover, Flexbox, Tag, Alert, toast } from '@lobehub/ui';
-import { Calendar, CloudSync, ChevronDown, CloudDownload, HardDriveDownload, Share, Save, CalendarArrowUp, ListTodo } from 'lucide-react';
+import SearchBar from './SearchBar';
+import { Button, Popover, Flexbox, toast } from '@lobehub/ui';
+import { Calendar, Database, ChevronDown, Download, Upload, Share, CalendarArrowUp, ListTodo } from 'lucide-react';
 import { useState, useRef } from 'react';
-import { bulkUpsertSchedules, ScheduleBase, convertBangumiItemsToSchedules, getSchedules } from '@/services/scheduleService';
 import { ExportCalendarModal } from '../Modal/ExportCalendarModal';
 import { ExportTickTickModal } from '../Modal/ExportTickTickModal';
 import { generateCalendarEvents, generateCSVString, generateVoiceCommand } from '@/services/CalendarService';
@@ -14,23 +13,17 @@ import { BangumiItem } from '@/services/bangumiService';
 
 interface TimetableHeaderProps {
   onSearch?: (value: string) => void;
-  onViewModeChange?: (mode: 'grid' | 'list') => void;
   schedules?: any[];
-  onSaveSuccess?: () => void;
   onSyncData?: (data: any[]) => void;
   onExportTickTick?: () => void;
 }
 
 export default function TimetableHeader({ 
   onSearch, 
-  onViewModeChange,
   schedules = [],
-  onSaveSuccess,
   onSyncData,
   onExportTickTick
 }: TimetableHeaderProps) {
-  const [isSaving, setIsSaving] = useState(false);
-  const [isSyncing, setIsSyncing] = useState(false);
   const [isExportModalOpen, setIsExportModalOpen] = useState(false);
   const [isTickTickModalOpen, setIsTickTickModalOpen] = useState(false);
   const [isExportMenuOpen, setIsExportMenuOpen] = useState(false);
@@ -44,58 +37,32 @@ export default function TimetableHeader({
   // 添加 ref 用于控制 Popover
   const syncPopoverRef = useRef<any>(null);
 
-  const handleSaveSchedules = async () => {
-    // 关闭 Popover
+  const handleSaveSchedules = () => {
     setIsSyncMenuOpen(false);
-    
     if (schedules.length === 0) {
       toast.warning('没有可保存的日程');
       return;
     }
-
-    setIsSaving(true);
-
     try {
-      // 在传输给后端前进行数据转换
-      const convertedSchedules = convertBangumiItemsToSchedules(schedules);
-      
-      if (convertedSchedules.length === 0) {
-        toast.warning('没有有效的日程数据');
-        return;
-      }
-      
-      await bulkUpsertSchedules(convertedSchedules);
-      onSaveSuccess?.();
-      // 显示成功提示
-      toast.success('保存成功');
-    } catch (error) {
-      console.error('保存日程失败:', error);
-      toast.error('保存失败，请重试');
-    } finally {
-      setIsSaving(false);
+      localStorage.setItem('aninexus-demo-schedules', JSON.stringify(schedules));
+      toast.success('日程已保存到当前浏览器');
+    } catch {
+      toast.error('浏览器无法保存这份日程');
     }
   };
 
-  const handleSyncData = async () => {
-    // 关闭 Popover
+  const handleSyncData = () => {
     setIsSyncMenuOpen(false);
-    
-    setIsSyncing(true);
-
     try {
-      // 调用 getSchedules API 获取数据
-      const syncData = await getSchedules();
-      
-      // 调用回调函数，将数据传递给父组件
-      onSyncData?.(syncData);
-      
-      // 显示成功提示
-      toast.success('同步数据成功');
-    } catch (error) {
-      console.error('同步数据失败:', error);
-      toast.error('同步失败，请重试');
-    } finally {
-      setIsSyncing(false);
+      const saved = localStorage.getItem('aninexus-demo-schedules');
+      if (!saved) {
+        toast.info('当前浏览器还没有保存过日程');
+        return;
+      }
+      onSyncData?.(JSON.parse(saved));
+      toast.success('已恢复本地日程');
+    } catch {
+      toast.error('本地日程数据无法读取');
     }
   };
 
@@ -178,7 +145,7 @@ export default function TimetableHeader({
                       textTransform: 'uppercase',
                     }}
                   >
-                    Data Sync
+                    本地数据
                   </div>
                   <Flexbox
                     horizontal
@@ -192,8 +159,8 @@ export default function TimetableHeader({
                     className="hover:bg-gray-100 dark:hover:bg-gray-800"
                     onClick={handleSaveSchedules}
                   >
-                    <CloudDownload size={16} style={{ marginRight: 10 }} />
-                    <span style={{ flex: 1, fontSize: 14 }}>{isSaving ? '保存中...' : '保存日程'}</span>
+                    <Download size={16} style={{ marginRight: 10 }} />
+                    <span style={{ flex: 1, fontSize: 14 }}>保存到浏览器</span>
                   </Flexbox>
                   <Flexbox
                     horizontal
@@ -207,14 +174,14 @@ export default function TimetableHeader({
                     className="hover:bg-gray-100 dark:hover:bg-gray-800"
                     onClick={handleSyncData}
                   >
-                    <HardDriveDownload size={16} style={{ marginRight: 10 }} />
-                    <span style={{ flex: 1, fontSize: 14 }}>{isSyncing ? '同步中...' : '同步云端'}</span>
+                    <Upload size={16} style={{ marginRight: 10 }} />
+                    <span style={{ flex: 1, fontSize: 14 }}>恢复本地日程</span>
                   </Flexbox>
                 </Flexbox>
               }
             >
-              <Button icon={<CloudSync size={16} />} style={{ gap: 6 }} type="text">
-                同步数据
+              <Button icon={<Database size={16} />} style={{ gap: 6 }} type="text">
+                本地数据
                 <ChevronDown size={14} style={{ opacity: 0.6 }} />
               </Button>
             </Popover>
@@ -237,7 +204,7 @@ export default function TimetableHeader({
                       textTransform: 'uppercase',
                     }}
                   >
-                    Export
+                    导出日程
                   </div>
                   <Flexbox
                     horizontal

@@ -1,12 +1,12 @@
-import React, { useState, useMemo, useEffect } from 'react';
-import { DraggablePanel, Flexbox, Segmented, ActionIcon, Icon } from '@lobehub/ui';
-import { Typography, Badge, Dropdown, Tooltip, Spin } from 'antd';
+import React, { useState, useMemo } from 'react';
+import { DraggablePanel, Flexbox, Segmented, Icon } from '@lobehub/ui';
+import { Typography, Dropdown, Tooltip } from 'antd';
 import { Filter, LayoutGrid, Tv, Book, Gamepad2, Film } from 'lucide-react';
 import TimelineMediaCard from './TimelineMediaCard';
 import DraggableItemWrapper from './DraggableItemWrapper';
 import SubjectModal from '../Modal/SubjectModal';
 import { BangumiItem } from '@/services/bangumiService';
-import { getCollections } from '@/services/scheduleService';
+import { DEMO_SCHEDULES } from '@/data/demoContent';
 
 const { Text } = Typography;
 
@@ -43,13 +43,6 @@ const STATUS_TO_STATUS_MAP = {
   on_hold: 4, // 搁置
 };
 
-const STATUS_COLORS: Record<string, string> = {
-  wish: 'blue',
-  watching: 'green',
-  watched: 'gray',
-  on_hold: 'orange',
-};
-
 interface CollectionPanelProps {
   searchQuery?: string;
 }
@@ -60,9 +53,7 @@ export const CollectionPanel = ({ searchQuery = '' }: CollectionPanelProps) => {
   // --- 2. 核心状态管理 ---
   const [activeType, setActiveType] = useState('all'); 
   const [activeStatus, setActiveStatus] = useState('all');
-  const [collections, setCollections] = useState<BangumiItem[]>([]);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const collections: BangumiItem[] = DEMO_SCHEDULES;
   const [isSubjectModalOpen, setIsSubjectModalOpen] = useState(false);
   const [selectedSubject, setSelectedSubject] = useState<any>(null);
 
@@ -79,43 +70,17 @@ export const CollectionPanel = ({ searchQuery = '' }: CollectionPanelProps) => {
     setIsSubjectModalOpen(true);
   };
 
-  // --- 3. 数据获取逻辑 ---
-  
-  useEffect(() => {
-    const fetchCollections = async () => {
-      setLoading(true);
-      setError(null);
-      try {
-        // 构建请求参数
-        const params: any = {};
-        if (activeType !== 'all') {
-          params.subject_type = CATEGORY_TO_TYPE_MAP[activeType as keyof typeof CATEGORY_TO_TYPE_MAP];
-        }
-        if (activeStatus !== 'all') {
-          params.status = STATUS_TO_STATUS_MAP[activeStatus as keyof typeof STATUS_TO_STATUS_MAP];
-        }
-        if (searchQuery) {
-          params.keyword = searchQuery;
-        }
-        
-        const items = await getCollections(params);
-        setCollections(items || []);
-      } catch (err) {
-        setError('获取收藏数据失败');
-        console.error('Error fetching collections:', err);
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    fetchCollections();
-  }, [activeType, activeStatus, searchQuery]);
-
   // --- 4. 数据过滤和排序逻辑 ---
   const filteredList = useMemo(() => {
-    // 直接使用后端返回的数据顺序，不进行前端排序
-    return collections;
-  }, [collections]);
+    const type = activeType === 'all' ? undefined : CATEGORY_TO_TYPE_MAP[activeType as keyof typeof CATEGORY_TO_TYPE_MAP];
+    const status = activeStatus === 'all' ? undefined : STATUS_TO_STATUS_MAP[activeStatus as keyof typeof STATUS_TO_STATUS_MAP];
+    const keyword = searchQuery.trim().toLocaleLowerCase();
+    return collections.filter((item) =>
+      (type === undefined || item.subject.type === type) &&
+      (status === undefined || item.collection?.type === status) &&
+      (!keyword || [item.subject.name, item.subject.name_cn || ''].some((value) => value.toLocaleLowerCase().includes(keyword)))
+    );
+  }, [activeStatus, activeType, collections, searchQuery]);
 
 
 
@@ -261,17 +226,7 @@ export const CollectionPanel = ({ searchQuery = '' }: CollectionPanelProps) => {
 
           {/* 列表区 */}
           <Flexbox flex={1} padding="0 16px 20px" gap={8} style={{ overflowY: 'auto' }}>
-            {loading ? (
-              // 加载状态
-              <Flexbox align="center" justify="center" flex={1}>
-                <Spin size="default" tip="加载中..." />
-              </Flexbox>
-            ) : error ? (
-              // 错误状态
-              <Flexbox align="center" justify="center" flex={1} style={{ color: 'var(--ant-color-danger)' }}>
-                {error}
-              </Flexbox>
-            ) : filteredList.length > 0 ? (
+            {filteredList.length > 0 ? (
               // 有数据状态
               filteredList.map(item => (
                 <Flexbox 

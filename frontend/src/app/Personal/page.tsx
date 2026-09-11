@@ -64,7 +64,7 @@ export default function PersonaDetailPage() {
   };
 
   return (
-    <div className={`flex flex-col h-full overflow-hidden ${isDarkMode ? 'dark:bg-neutral-950' : 'bg-white'}`}>
+    <div className={`nexus-workspace-page flex flex-col h-full overflow-hidden ${isDarkMode ? 'dark:bg-neutral-950' : 'bg-white'}`}>
       {/* 顶部 Header：固定在顶部 */}
       <div className="flex-none z-10">
         <PersonaHeader />

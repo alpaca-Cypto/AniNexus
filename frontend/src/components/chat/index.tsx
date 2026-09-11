@@ -3,29 +3,21 @@
 import { useState, useRef, useEffect } from 'react';
 import { v4 as uuidv4 } from 'uuid';
 // 1. 引入图标并重命名，防止命名冲突
-import { User as UserIcon, Bot as BotIcon, Plus, Trash2, MessageSquare, Copy, Loader2, CheckCircle2, XCircle } from 'lucide-react';
+import { Plus, Trash2, MessageSquare, Copy, Loader2, CheckCircle2, XCircle } from 'lucide-react';
 import { theme } from 'antd';
 import { ChatItem } from '@lobehub/ui/chat';
 import { ActionIcon, ActionIconGroup, DraggablePanel, Avatar } from '@lobehub/ui';
 import { useAppTheme } from '@/components/providers/LobeProvider';
-import { ModelSelector } from './ModelSelector';
-import SearchTrigger, { SearchResultItem } from './SearchBar';
+import type { SearchResultItem } from './SearchBar';
 import ChatInput from './ChatInput';
-import ApiKeyModal from '../Modal/ApiKeyModal';
-import { chatWithBackend } from '@/lib/fetcher';
 import useChatStore, { Message, ToolCall } from '../../stores/useChatStore';
 import { useRoleStore } from '@/store/useRoleStore';
 import presetRoles from '@/store/presetRoles';
 
 export default function ChatPage() {
   const [loading, setLoading] = useState(false);
-  // 模型选择相关状态
-  const [selectedModel, setSelectedModel] = useState('gpt-3.5-turbo');
-  const [selectedProvider, setSelectedProvider] = useState('openai');
   // 角色选择相关状态
   const [selectedRole, setSelectedRole] = useState('preset-1'); // 默认选择第一个预设角色
-  // API 管理模态框状态
-  const [isApiKeyModalOpen, setIsApiKeyModalOpen] = useState(false);
 
   const { token } = theme.useToken();
   const { isDarkMode } = useAppTheme();
@@ -61,12 +53,6 @@ export default function ChatPage() {
     ? chatMessages.get(activeSessionId) || [] 
     : [];
 
-  // 处理模型选择变化
-  const handleModelChange = (modelId: string, provider: string) => {
-    setSelectedModel(modelId);
-    setSelectedProvider(provider);
-  };
-
   // 从 Store 获取所有自定义角色
   const customRoles = useRoleStore((s) => s.customRoles);
 
@@ -83,11 +69,6 @@ export default function ChatPage() {
     return allRoles.find(role => role.id === selectedRole);
   };
 
-  // 打开 API 管理模态框
-  const handleOpenSettings = () => {
-    setIsApiKeyModalOpen(true);
-  };
-
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [currentMessages, loading]);
@@ -95,129 +76,26 @@ export default function ChatPage() {
   const handleSend = async (text: string, contextItems: SearchResultItem[]) => {
     if (!text.trim() && contextItems.length === 0) return;
     if (!activeSessionId) return;
-
-    // 1. UI 消息构建
-    // 创建 userMessage
     const userMessage = {
       id: uuidv4(),
       role: 'user' as const,
-      content: text, // 仅存放纯文本，保持界面整洁
+      content: text || '看看这些作品',
       createdAt: new Date(),
-      extra: { contextItems } // 将 contextItems 存入 extra 字段，用于元数据持久化
+      extra: { contextItems }
     };
-
-    // 添加用户消息到存储中
     sendMessage(activeSessionId, userMessage);
+    if (currentMessages.length === 0 && text.trim()) updateSessionTitle(activeSessionId, text.trim().slice(0, 18));
 
-    // 2. 后端 Payload 构建 (RAG)
-    // 准备格式化的消息
-    const formattedMessages = [
-      ...currentMessages.map((msg: Message) => ({
-        role: msg.role,
-        content: msg.content
-      }))
-    ];
+    const aiMessageId = uuidv4();
+    sendMessage(activeSessionId, { id: aiMessageId, role: 'assistant' as const, content: '', createdAt: new Date() });
+    setLoading(true);
+    await new Promise((resolve) => setTimeout(resolve, 220));
 
-    // 构建用户消息
-    let userContent = text;
-    if (contextItems.length > 0) {
-      // 将 contextItems 格式化为 XML 字符串
-      const contextXml = contextItems.map(item => {
-        return `<Entity id="${item.id}" source="${item.source}" sourceId="${item.sourceId}">${item.title}</Entity>`;
-      }).join('\n');
-      
-      // 将格式化后的 Context 拼接到 Prompt 中
-      userContent = `Context:\n${contextXml}\n\nUser Question:\n${text}`;
-    }
-    
-    formattedMessages.push({ role: 'user', content: userContent });
-
-    // 3. 请求发送
-    try {
-      // 开始加载状态
-      setLoading(true);
-      
-      // 为 AI 回复创建一个占位消息
-      const aiMessageId = uuidv4();
-      const aiMessage = {
-        id: aiMessageId,
-        role: 'assistant' as const,
-        content: '',
-        createdAt: new Date()
-      };
-      sendMessage(activeSessionId, aiMessage);
-
-      // Get the selected role's prompt config
-      const selectedRoleObj = getSelectedRole();
-      const prompt_config = selectedRoleObj ? selectedRoleObj.promptConfig : undefined;
-
-      // 工具调用 ID 映射，用于跟踪正在运行的工具调用
-      const toolCallMap = new Map<string, string>();
-      
-      // 🌟 核心修复 1：在内存中创建一个变量，用来不断累加后端传来的碎片文本
-      let accumulatedContent = '';
-
-      // Call the backend API
-      await chatWithBackend({
-        messages: formattedMessages,
-        provider: selectedProvider,
-        model: selectedModel,
-        temperature: selectedRoleObj?.temperature || 0.7,
-        prompt_config,
-        onMessageChunk: (chunk) => {
-          // 🌟 每次收到新字，拼接到完整字符串上
-          accumulatedContent += chunk;
-          // 把拼接好的【完整文本】交给 Store 去渲染
-          updateMessage(activeSessionId, accumulatedContent, aiMessageId);
-        },
-        onToolStart: (name, inputs) => {
-          // 生成工具调用 ID
-          const toolCallId = `${name}-${Date.now()}`;
-          toolCallMap.set(name, toolCallId);
-          
-          // 创建工具调用对象
-          const toolCall: ToolCall = {
-            id: toolCallId,
-            name,
-            inputs,
-            status: 'running'
-          };
-          
-          // 🌟 核心修复 2：传入 accumulatedContent 而不是 ''，防止工具调用时清空已有正文
-          updateMessage(activeSessionId, accumulatedContent, aiMessageId, toolCall);
-        },
-        onToolEnd: (name, output) => {
-          // 获取工具调用 ID
-          const toolCallId = toolCallMap.get(name);
-          if (toolCallId) {
-            // 更新工具调用状态
-            const toolCall: ToolCall = {
-              id: toolCallId,
-              name,
-              status: 'success',
-              output
-            };
-            
-            // 🌟 核心修复 3：同样传入 accumulatedContent
-            updateMessage(activeSessionId, accumulatedContent, aiMessageId, toolCall);
-          }
-        },
-        onError: (error) => {
-          // 更新 AI 消息的错误内容
-          updateMessage(activeSessionId, `Error: ${error}`);
-        },
-        onComplete: () => {
-          // 完成加载状态
-          setLoading(false);
-        }
-      });
-    } catch (error) {
-      console.error('Error sending message:', error);
-      
-      // Update the AI message with the error content
-      updateMessage(activeSessionId, `Error: ${error instanceof Error ? error.message : 'Unknown error'}`);
-      setLoading(false);
-    }
+    const roleName = getSelectedRole()?.name || 'AniNexus 助手';
+    const related = contextItems.length ? `你附带了 ${contextItems.map((item) => `《${item.title}》`).join('、')}。` : '';
+    const answer = `${related}这是 ${roleName} 的前端演示回复。当前版本不会发送网络请求，你可以继续测试会话、角色切换、作品引用和消息布局。${text.trim() ? `\n\n关于“${text.trim()}”，接入内容数据后，这里会展示对应的推荐理由、题材对比和观看建议。` : ''}`;
+    updateMessage(activeSessionId, answer, aiMessageId);
+    setLoading(false);
   };
 
   return (
@@ -522,18 +400,8 @@ export default function ChatPage() {
           <ChatInput
             onSend={handleSend}
             loading={loading}
-            selectedModel={selectedModel}
-            selectedProvider={selectedProvider}
-            onModelChange={handleModelChange}
-            onOpenSettings={handleOpenSettings}
             selectedRole={selectedRole}
             onRoleChange={handleRoleChange}
-          />
-
-          {/* API Key 管理模态框 */}
-          <ApiKeyModal
-            open={isApiKeyModalOpen}
-            onClose={() => setIsApiKeyModalOpen(false)}
           />
         </div>
       </div>

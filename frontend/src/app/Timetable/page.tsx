@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useCallback, useEffect } from 'react';
+import React, { useState, useCallback } from 'react';
 import { DndContext, PointerSensor, useSensor, useSensors, DragOverlay, pointerWithin } from '@dnd-kit/core';
 import { useAppTheme } from '@/components/providers/LobeProvider';
 import {
@@ -18,8 +18,6 @@ import { LobeHub } from '@lobehub/ui/brand';
 import {
   ChevronDown,
   ChevronUp,
-  CloudDownload,
-  HardDriveDownload,
   Save,
   CalendarArrowUp,
   ListTodo,
@@ -37,8 +35,8 @@ import {
   Trash2
 } from 'lucide-react';
 import { LucideIcon } from 'lucide-react';
-import { getBangumiCalendar, syncBangumiCalendar, BangumiItem as ScheduleItem, WatchType } from '@/services/bangumiService';
-import { ScheduleBase, deleteAllSchedules, getSchedules } from '@/services/scheduleService';
+import { BangumiItem as ScheduleItem, WatchType } from '@/services/bangumiService';
+import { DEMO_SCHEDULES } from '@/data/demoContent';
 import TimetableHeader from '@/components/header/TimetableHeader';
 import TimelineBoard from '@/components/timetable/TimelineBoard';
 import StandardLanes from '@/components/timetable/StandardLanes';
@@ -197,37 +195,14 @@ const CurrentDayIndicator: React.FC<{ day: number }> = ({ day }) => {
 export default function WeeklyBoardPage() {
   const { isDarkMode } = useAppTheme();
   const currentDay = getCurrentDay();
-  const [scheduleItems, setScheduleItems] = useState<ScheduleItem[]>([]);
+  const [scheduleItems, setScheduleItems] = useState<ScheduleItem[]>(() => DEMO_SCHEDULES.map((item) => ({ ...item, subject: { ...item.subject } })));
   const [activeDragItem, setActiveDragItem] = useState<ScheduleItem | null>(null);
   const [overSlotId, setOverSlotId] = useState<string | null>(null);
   const [isLanesCollapsed, setIsLanesCollapsed] = useState(false);
-  const [isLoading, setIsLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const isLoading = false;
+  const error = null;
   const [isTickTickModalOpen, setIsTickTickModalOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
-  
-  // 组件加载时自动获取日程数据
-  useEffect(() => {
-    const loadSchedules = async () => {
-      setIsLoading(true);
-      setError(null);
-      try {
-        // 调用 getSchedules API 获取数据
-        const schedules = await getSchedules();
-        // 更新 scheduleItems 状态
-        setScheduleItems(schedules);
-        console.log('自动加载日程数据成功，共', schedules.length, '条记录');
-      } catch (err) {
-        const errorMessage = err instanceof Error ? err.message : '获取日程数据失败';
-        setError(errorMessage);
-        console.error('自动加载日程数据失败:', errorMessage);
-      } finally {
-        setIsLoading(false);
-      }
-    };
-    
-    loadSchedules();
-  }, []); // 空依赖数组，只在组件挂载时执行一次
   
   // 配置传感器
   const sensors = useSensors(
@@ -431,56 +406,12 @@ export default function WeeklyBoardPage() {
   }, []);
   
   // 处理获取 Bangumi 日历数据
-  const handleFetchBangumiCalendar = useCallback(async () => {
-    setIsLoading(true);
-    setError(null);
-    try {
-      // 清空现有的卡片
-      setScheduleItems([]);
-      
-      // 调用 syncBangumiCalendar 函数获取数据
-      const bangumiItems = await syncBangumiCalendar();
-      
-      // 过滤掉 watch_time 为空的卡片
-      const validItems = bangumiItems.filter(item => item.watch_time !== '未知' && item.watch_time !== null);
-      
-      // 确保所有项目都有正确的 watch_type 和默认 duration
-      const updatedItems = validItems.map(item => {
-        return {
-          ...item,
-          watch_type: item.watch_type || WatchType.NEW,
-          duration: item.duration ?? 1
-        };
-      });
-      
-      // 更新卡片数据
-      setScheduleItems(updatedItems);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : '获取 Bangumi 日历数据失败');
-    } finally {
-      setIsLoading(false);
-    }
+  const handleFetchBangumiCalendar = useCallback(() => {
+    setScheduleItems(DEMO_SCHEDULES.map((item) => ({ ...item, subject: { ...item.subject } })));
+    toast.success('已载入演示新番');
   }, []);
-  const handleSyncCloud = useCallback(() => {
-    console.log('同步云端');
-  }, []);
-  
-  const handleSyncLocal = useCallback(() => {
-    console.log('同步本地');
-  }, []);
-  
-  const handleSaveSchedule = useCallback(() => {
-    console.log('保存当前排期');
-  }, []);
-
-  // 保存日程成功回调
-  const handleSaveSuccess = useCallback(() => {
-    console.log('日程保存成功');
-  }, []);
-  
   // 同步数据回调
   const handleSyncData = useCallback((data: any[]) => {
-    console.log('同步数据成功，接收到的数据:', data);
     setScheduleItems(data);
   }, []);
   
@@ -490,36 +421,16 @@ export default function WeeklyBoardPage() {
   }, []);
   
   // 清空所有卡片
-  const handleClearAll = useCallback(async () => {
-    try {
-      // 调用后端 API 删除所有排班记录
-      await deleteAllSchedules();
-      // 清空页面上的排班记录
-      setScheduleItems([]);
-      // 显示成功提示
-      toast.success('所有日程已清空');
-    } catch (error) {
-      console.error('清空所有日程失败:', error);
-      toast.error('清空所有日程失败，请重试');
-    }
+  const handleClearAll = useCallback(() => {
+    setScheduleItems([]);
+    localStorage.removeItem('aninexus-demo-schedules');
+    toast.success('已清空当前演示日程');
   }, []);
 
   const openTickTickModal = useCallback(() => setIsTickTickModalOpen(true), []);
   const closeTickTickModal = useCallback(() => setIsTickTickModalOpen(false), []);
   const toggleLanesCollapse = useCallback(() => setIsLanesCollapsed(v => !v), []);
 
-  // 同步菜单
-  const syncMenu = (
-    <div className="flex flex-col w-36 p-1">
-      <div onClick={handleSyncCloud} className="flex items-center gap-2 px-3 py-2 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-md cursor-pointer text-sm transition-colors">
-        <CloudDownload size={14} /> <span>同步云端</span>
-      </div>
-      <div onClick={handleSyncLocal} className="flex items-center gap-2 px-3 py-2 hover:bg-gray-100 dark:hover:bg-gray-800 rounded-md cursor-pointer text-sm transition-colors">
-        <HardDriveDownload size={14} /> <span>同步本地</span>
-      </div>
-    </div>
-  );
-  
   return (
     <DndContext 
       sensors={sensors}
@@ -528,12 +439,11 @@ export default function WeeklyBoardPage() {
       onDragEnd={handleDragEnd}
       collisionDetection={pointerWithin}
     >
-      <div className={`h-full flex flex-col overflow-hidden ${isDarkMode ? 'dark:bg-neutral-950' : 'bg-white'}`}>
+      <div className={`nexus-workspace-page h-full flex flex-col overflow-hidden ${isDarkMode ? 'dark:bg-neutral-950' : 'bg-white'}`}>
         {/* 顶部 Header 区域 - 固定不滚动 */}
         <div className="flex-none z-10">
           <TimetableHeader 
             schedules={scheduleItems}
-            onSaveSuccess={handleSaveSuccess}
             onSyncData={handleSyncData}
             onExportTickTick={openTickTickModal}
             onSearch={handleSearch}

@@ -2,9 +2,10 @@
 
 import { ReactNode } from 'react';
 import { usePathname } from 'next/navigation';
-import { DesktopSidebar } from '@/features/Sidebar';
 import { theme } from 'antd';
 import { ToastHost } from '@lobehub/ui';
+import { SiteHeader } from '@/components/navigation/SiteHeader';
+import { useAppTheme } from '@/components/providers/LobeProvider';
 
 export interface APPLayoutProps {
   children: ReactNode;
@@ -23,9 +24,11 @@ export const APPLayout = ({
   const pathname = usePathname();
 
   const { token } = theme.useToken();
+  const { isDarkMode } = useAppTheme();
+  const isPublicPreview = pathname.startsWith('/preview');
   
   // 判断是否为聊天页面，逻辑覆盖根路径和包含 /chat 的路径
-  const isFullScreenPage = pathname === '/' || pathname === '/assistant' || pathname === '/collections' || pathname === '/Timetable' || pathname === '/Personal';
+  const isFullScreenPage = isPublicPreview || pathname === '/' || pathname === '/assistant' || pathname === '/collections' || pathname === '/Timetable' || pathname === '/Personal';
 
   // 样式映射表
   const paddingMap: Record<string, string> = {
@@ -53,39 +56,11 @@ export const APPLayout = ({
   };
 
   return (
-    <div style={{ 
-      position: 'fixed', 
-      top: 0, 
-      left: 0, 
-      width: '100vw', 
-      height: '100vh', 
-      display: 'flex', 
-      flexDirection: 'row',
-      overflow: 'hidden',
-      // 3. 核心修复：直接使用 token 中的颜色
-      background: token.colorBgLayout, 
-      color: token.colorTextBase
-    }}>
-      
-      <DesktopSidebar />
-
-      <div style={{ 
-        flex: 1, 
-        display: 'flex', 
-        flexDirection: 'column', 
-        height: '100%', 
-        position: 'relative',
-        minWidth: 0 
-      }}>
+    <div className={isPublicPreview ? 'aninexus-preview-shell' : 'aninexus-shell'} data-mode={isDarkMode ? 'dark' : 'light'} style={{ background: token.colorBgLayout, color: token.colorTextBase }}>
+      {!isPublicPreview && <SiteHeader />}
+      <div className="aninexus-stage">
         
-        <main style={{ 
-          flex: 1, 
-          display: 'flex', 
-          flexDirection: 'column', 
-          position: 'relative', 
-          overflow: 'hidden', 
-          minHeight: 0        
-        }}>
+        <main className="aninexus-main" style={{ overflow: 'hidden' }}>
           {isFullScreenPage ? (
             // ✅ 全屏模式：无 Padding，无默认滚动，高度 100%
             // 这时候你的 CollectionPage 就必须自己写 flex flex-col 和 overflow-y-auto

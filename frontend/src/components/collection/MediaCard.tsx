@@ -43,7 +43,7 @@ export const MediaCard = ({ data, category, variant = 'standard', onOpenDetail, 
   // --- 数据清洗 (逻辑封装在内部) ---
   const subject = data.subject || data;
   const title = subject?.name_cn || subject?.name || data.title;
-  const rawCover = subject?.images?.large || data.cover;
+  const rawCover = subject?.images?.large || subject?.images?.common || subject?.image || data.cover;
   // 遇到豆瓣图片，使用本地代理接口
   const cover = rawCover?.includes('doubanio.com')
     ? `/api/proxy-image?url=${encodeURIComponent(rawCover)}`

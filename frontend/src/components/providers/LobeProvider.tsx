@@ -58,7 +58,7 @@ export const LobeProvider = ({ children }: { children: ReactNode }) => {
   // 2. 衍生状态：系统当前是否为暗色
   const [systemIsDark, setSystemIsDark] = useState(false);
   
-  const [primaryColor, setPrimaryColor] = useState<string>('#0072F5'); // 默认蓝色 Hex
+  const [primaryColor, setPrimaryColor] = useState<string>('#D13F70');
   const [neutralColor, setNeutralColor] = useState<NeutralColors>('slate');
   const [isMounted, setIsMounted] = useState(false);
 
@@ -143,7 +143,10 @@ export const LobeProvider = ({ children }: { children: ReactNode }) => {
           theme={{
             token: { 
               colorPrimary: resolvePrimaryColor(primaryColor),
-              colorInfo: resolvePrimaryColor(primaryColor) 
+              colorInfo: resolvePrimaryColor(primaryColor),
+              colorBgLayout: isDarkMode ? '#211A1F' : '#FBF6F8',
+              colorBorder: isDarkMode ? '#493641' : '#E8D7DF',
+              borderRadius: 10,
             },
             cssVar: { key: 'app' },
             algorithm: isDarkMode ? antTheme.darkAlgorithm : antTheme.defaultAlgorithm,

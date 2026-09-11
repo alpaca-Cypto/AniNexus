@@ -1,23 +1,17 @@
 "use client";
 
 import { useState } from 'react';
-import { Languages, Eraser, X } from 'lucide-react';
-import { theme } from 'antd';
+import { Eraser, Sparkles, X } from 'lucide-react';
 import { ChatInputArea, ChatInputActionBar, TokenTag, ChatSendButton } from '@lobehub/ui/chat';
 import { ActionIcon } from '@lobehub/ui';
 import { Avatar } from '@lobehub/ui';
 import { useAppTheme } from '@/components/providers/LobeProvider';
-import { ModelSelector } from './ModelSelector';
 import { RoleSelector } from './RoleSelector';
 import SearchTrigger, { SearchResultItem } from './SearchBar';
 
 interface ChatInputProps {
   onSend: (text: string, contextItems: SearchResultItem[]) => void;
   loading: boolean;
-  selectedModel: string;
-  selectedProvider: string;
-  onModelChange: (modelId: string, provider: string) => void;
-  onOpenSettings: () => void;
   selectedRole: string;
   onRoleChange: (roleId: string) => void;
 }
@@ -25,10 +19,6 @@ interface ChatInputProps {
 export const ChatInput = ({
   onSend,
   loading,
-  selectedModel,
-  selectedProvider,
-  onModelChange,
-  onOpenSettings,
   selectedRole,
   onRoleChange,
 }: ChatInputProps) => {
@@ -41,7 +31,6 @@ export const ChatInput = ({
     maxHeight: 600, 
   };
 
-  const { token } = theme.useToken();
   const { isDarkMode } = useAppTheme();
 
   // 处理搜索结果选择
@@ -157,11 +146,7 @@ export const ChatInput = ({
             <ChatInputActionBar
               leftAddons={
                 <div style={{ marginLeft: '20px', display: 'flex', alignItems: 'center', gap: '8px' }}>
-                  <ModelSelector 
-                    value={selectedModel} 
-                    onChange={onModelChange} 
-                    onOpenSettings={onOpenSettings} 
-                  />
+                  <span className="chat-demo-badge"><Sparkles size={14} />前端演示</span>
                   <RoleSelector 
                     value={selectedRole} 
                     onChange={onRoleChange} 
@@ -206,6 +191,7 @@ export const ChatInput = ({
 
       {/* 添加淡入动画样式 */}
       <style jsx>{`
+        .chat-demo-badge { min-height: 30px; padding: 0 10px; display: inline-flex; align-items: center; gap: 6px; color: var(--nexus-primary-dark); border-radius: 999px; background: var(--nexus-primary-soft); font-size: 12px; font-weight: 700; white-space: nowrap; }
         @keyframes fadeIn {
           from {
             opacity: 0;

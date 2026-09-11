@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import "./globals.css";
 import "./prism.css";
+import "./site-shell.css";
 import { LobeProvider } from "@/components/providers/LobeProvider";
 import { APPLayout } from "./APPLayout";
 

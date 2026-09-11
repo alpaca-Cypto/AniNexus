@@ -1,92 +1,130 @@
 "use client";
 
 import Link from "next/link";
-import {
-  ArrowRight,
-  Bot,
-  CalendarDays,
-  Compass,
-  ExternalLink,
-  Library,
-  ListFilter,
-  Play,
-  Search,
-  Sparkles,
-  UserRound,
-} from "lucide-react";
-import { CursorEffects } from "@/components/CursorEffects";
+import Image from "next/image";
+import { FormEvent, useMemo, useState } from "react";
+import { Bot, CalendarDays, ChevronDown, Clock3, Library, LoaderCircle, Search, SlidersHorizontal, Sparkles, Star, X } from "lucide-react";
+import type { SearchResult } from "@/services/search";
+import { DEMO_SEARCH_RESULTS } from "@/data/demoContent";
+import "./search-home.css";
 
-const workspace = [
-  { href: "/collections", icon: Library, title: "我的收藏库", description: "整理想看、在看和看过的作品", accent: "violet" },
-  { href: "/Timetable", icon: CalendarDays, title: "追番日历", description: "查看每周放送并安排观看计划", accent: "cyan" },
-  { href: "/assistant", icon: Bot, title: "AI 动漫助手", description: "搜索资料、比较作品并获取推荐", accent: "rose" },
-  { href: "/Personal", icon: UserRound, title: "个人画像", description: "管理偏好、角色和推荐依据", accent: "amber" },
+type MediaTab = "anime" | "manga";
+type SortKey = "score" | "date" | "title";
+const HISTORY_KEY = "aninexus-search-history";
+
+const quickLinks = [
+  { href: "/collections", icon: Library, label: "打开收藏库" },
+  { href: "/Timetable", icon: CalendarDays, label: "查看追番日历" },
+  { href: "/assistant", icon: Bot, label: "询问动漫助手" },
 ];
 
-const resources = [
-  { href: "https://bgm.tv/", domain: "bgm.tv", tag: "资料 / 评分", title: "Bangumi 番组计划", description: "查看作品条目、评分、角色与制作人员资料", icon: "B", color: "#f09199" },
-  { href: "https://www.bilibili.com/anime", domain: "bilibili.com", tag: "正版观看", title: "哔哩哔哩番剧", description: "浏览正版番剧、热播榜与新番时间表", icon: "哔", color: "#32b9df" },
-  { href: "https://anilist.co/search/anime", domain: "anilist.co", tag: "趋势 / 发现", title: "AniList", description: "发现当季热门、趋势作品和全球榜单", icon: "A", color: "#5c7cff" },
-  { href: "https://myanimelist.net/anime/season", domain: "myanimelist.net", tag: "季度索引", title: "MyAnimeList", description: "按季度浏览新番、排名和用户评价", icon: "M", color: "#5473c8" },
-];
+function readHistory(): string[] {
+  if (typeof window === "undefined") return [];
+  try {
+    const value = JSON.parse(localStorage.getItem(HISTORY_KEY) || "[]");
+    return Array.isArray(value) ? value.filter((item): item is string => typeof item === "string").slice(0, 6) : [];
+  } catch { return []; }
+}
 
 export default function Home() {
+  const [tab, setTab] = useState<MediaTab>("anime");
+  const [query, setQuery] = useState("");
+  const [history, setHistory] = useState<string[]>(readHistory);
+  const [showHistory, setShowHistory] = useState(false);
+  const [showFilters, setShowFilters] = useState(false);
+  const [yearFrom, setYearFrom] = useState("");
+  const [scoreFrom, setScoreFrom] = useState("");
+  const [sort, setSort] = useState<SortKey>("score");
+  const [results, setResults] = useState<SearchResult[] | null>(null);
+  const [loading, setLoading] = useState(false);
+
+  const visibleResults = useMemo(() => {
+    if (!results) return null;
+    const expectedType = tab === "anime" ? 2 : 1;
+    const filtered = results.filter(({ subject }) => {
+      const year = Number(subject.date?.slice(0, 4));
+      const score = Number(subject.rating?.score || subject.score || 0);
+      return subject.type === expectedType && (!yearFrom || (year > 0 && year >= Number(yearFrom))) && (!scoreFrom || score >= Number(scoreFrom));
+    });
+    return [...filtered].sort((a, b) => {
+      if (sort === "title") return (a.subject.name_cn || a.subject.name).localeCompare(b.subject.name_cn || b.subject.name, "zh-CN");
+      if (sort === "date") return (b.subject.date || "").localeCompare(a.subject.date || "");
+      return Number(b.subject.rating?.score || b.subject.score || 0) - Number(a.subject.rating?.score || a.subject.score || 0);
+    });
+  }, [results, scoreFrom, sort, tab, yearFrom]);
+
+  const runSearch = (keyword = query) => {
+    const normalized = keyword.trim();
+    const lowered = normalized.toLocaleLowerCase();
+    const data = DEMO_SEARCH_RESULTS.filter(({ subject }) => !lowered || [subject.name, subject.name_cn, subject.short_summary, ...(subject.tags || []).map((tag) => tag.name)].some((value) => value?.toLocaleLowerCase().includes(lowered)));
+    setShowHistory(false); setLoading(false); setResults(data);
+    if (normalized) {
+      const next = [normalized, ...history.filter((item) => item !== normalized)].slice(0, 6);
+      setHistory(next); localStorage.setItem(HISTORY_KEY, JSON.stringify(next));
+    }
+  };
+
+  const submitSearch = (event: FormEvent) => { event.preventDefault(); runSearch(); };
+  const switchTab = (next: MediaTab) => { setTab(next); setResults(null); };
+
   return (
-    <div className="admin-dashboard resource-dashboard">
-      <CursorEffects />
-      <header className="admin-topbar">
-        <div><p className="admin-breadcrumb">NEXUS / HOME</p><h1>AniNexus 导航台</h1></div>
-        <div className="admin-top-actions">
-          <Link href="/collections" className="admin-add-button"><Search size={16} /> 搜索我的收藏</Link>
-        </div>
-      </header>
+    <div className="search-portal">
+      <main className="search-portal__main">
+        <section className="search-portal__hero">
+          <i className="search-portal__shape search-portal__shape--ring" aria-hidden="true" />
+          <i className="search-portal__shape search-portal__shape--diamond" aria-hidden="true" />
+          <p className="search-portal__edition"><Sparkles size={15} /> 动画与漫画资料库</p>
+          <h1>アニメをもっと探そう</h1>
+          <p className="search-portal__subtitle">发现下一部值得投入时间的作品</p>
 
-      <div className="admin-content">
-        <section className="resource-hero">
-          <div>
-            <span className="admin-eyebrow"><Sparkles size={14} /> ANIME STARTS HERE</span>
-            <h2>从一个入口，前往<br /><em>你的动画世界。</em></h2>
-            <p>不展示没有数据来源的统计，只保留真正可以使用的功能与站点。</p>
-            <div className="admin-hero-actions">
-              <Link href="/collections">打开收藏库 <ArrowRight size={16} /></Link>
-              <a href="https://bgm.tv/" target="_blank" rel="noreferrer">浏览 Bangumi <ExternalLink size={15} /></a>
+          <div className="search-portal__tabs" role="tablist" aria-label="内容类型">
+            <button role="tab" aria-selected={tab === "anime"} className={tab === "anime" ? "active" : ""} onClick={() => switchTab("anime")}>动漫</button>
+            <button role="tab" aria-selected={tab === "manga"} className={tab === "manga" ? "active" : ""} onClick={() => switchTab("manga")}>漫画</button>
+          </div>
+
+          <form className="search-portal__search" onSubmit={submitSearch}>
+            <div className="search-portal__input-wrap">
+              <Search size={21} aria-hidden="true" />
+              <input aria-label={`搜索${tab === "anime" ? "动漫" : "漫画"}`} placeholder={`搜索${tab === "anime" ? "动漫" : "漫画"}名称，例如：芙莉莲`} value={query} onChange={(event) => setQuery(event.target.value)} onFocus={() => history.length > 0 && setShowHistory(true)} />
+              {query && <button className="search-portal__clear" type="button" aria-label="清空搜索词" onClick={() => setQuery("")}><X size={17} /></button>}
+              {showHistory && history.length > 0 && (
+                <div className="search-portal__history">
+                  <div><span>最近搜索</span><button type="button" onClick={() => { setHistory([]); localStorage.removeItem(HISTORY_KEY); setShowHistory(false); }}>清空</button></div>
+                  {history.map((item) => <button type="button" key={item} onClick={() => { setQuery(item); runSearch(item); }}><Clock3 size={14} />{item}</button>)}
+                </div>
+              )}
             </div>
-          </div>
-          <div className="resource-prism" aria-hidden="true">
-            <span className="geo-main">AN</span><i className="geo-ring" /><b className="geo-square" />
-            <span className="geo-dot" /><span className="geo-zigzag">〰</span><span className="geo-star">✦</span>
-          </div>
+            <button className="search-portal__submit" type="submit" aria-label="搜索" disabled={loading}>{loading ? <LoaderCircle className="search-portal__spinner" size={19} /> : <Search size={19} />}<span>搜索</span></button>
+          </form>
+
+          <button className={`search-portal__filter-toggle ${showFilters ? "active" : ""}`} type="button" onClick={() => setShowFilters((value) => !value)}><SlidersHorizontal size={15} /> 筛选条件 <ChevronDown className={showFilters ? "rotated" : ""} size={15} /></button>
+          {showFilters && (
+            <div className="search-portal__filters">
+              <label>起始年份<input type="number" min="1900" max={new Date().getFullYear()} placeholder="例如 2020" value={yearFrom} onChange={(event) => setYearFrom(event.target.value)} /></label>
+              <label>最低评分<input type="number" min="0" max="10" step="0.1" placeholder="例如 8.0" value={scoreFrom} onChange={(event) => setScoreFrom(event.target.value)} /></label>
+              <label>排序方式<select value={sort} onChange={(event) => setSort(event.target.value as SortKey)}><option value="score">评分优先</option><option value="date">最新作品</option><option value="title">标题顺序</option></select></label>
+            </div>
+          )}
         </section>
 
-        <section className="resource-section">
-          <div className="resource-heading"><div><span>WORKSPACE</span><h2>项目功能</h2></div><p>所有入口均连接现有页面</p></div>
-          <div className="workspace-grid">
-            {workspace.map(({ href, icon: Icon, title, description, accent }) => (
-              <Link href={href} className={`workspace-card ${accent}`} key={href}>
-                <span className="workspace-icon"><Icon size={21} /></span>
-                <div><strong>{title}</strong><p>{description}</p></div><ArrowRight size={17} />
-              </Link>
-            ))}
-          </div>
+        <section className="search-portal__results" aria-live="polite" aria-busy={loading}>
+          {loading ? <div className="search-portal__skeletons">{Array.from({ length: 12 }, (_, index) => <div className="search-portal__skeleton" key={index}><i /><span /><span /></div>)}</div>
+          : visibleResults && visibleResults.length > 0 ? <>
+            <div className="search-portal__result-heading"><div><h2>{tab === "anime" ? "动漫" : "漫画"}搜索结果</h2><p>共显示 {visibleResults.length} 个匹配条目</p></div></div>
+            <div className="search-portal__grid">{visibleResults.map(({ subject }) => {
+              const title = subject.name_cn || subject.name;
+              const cover = subject.images?.large || subject.images?.common || subject.image;
+              const score = Number(subject.rating?.score || subject.score || 0);
+              return <a className="search-portal__card" href={`https://bgm.tv/subject/${subject.source_id || subject.id}`} target="_blank" rel="noreferrer" key={`${subject.source}-${subject.source_id || subject.id}`}>
+                <div className="search-portal__cover">{cover ? <Image src={cover} alt={`${title} 封面`} fill sizes="(max-width: 760px) 46vw, 180px" referrerPolicy="no-referrer" /> : <div className="search-portal__cover-empty">AN</div>}<span>{subject.type === 2 ? "动画" : "书籍"}</span></div>
+                <div className="search-portal__card-copy"><h3>{title}</h3>{subject.name !== title && <p>{subject.name}</p>}<div>{score > 0 ? <span><Star size={14} fill="currentColor" /> {score.toFixed(1)}</span> : <span>暂无评分</span>}<time>{subject.date?.slice(0, 4) || "年份未知"}</time></div></div>
+              </a>;
+            })}</div>
+          </>
+          : visibleResults ? <div className="search-portal__state"><Search size={38} /><h2>没有找到匹配结果</h2><p>可以缩短关键词，或调整年份和评分条件。</p></div>
+          : <div className="search-portal__welcome"><p>输入关键词开始搜索，也可以先进入你的个人内容空间。</p><div>{quickLinks.map(({ href, icon: Icon, label }) => <Link href={href} key={href}><Icon size={19} /><span>{label}</span></Link>)}</div></div>}
         </section>
-
-        <section className="resource-section">
-          <div className="resource-heading"><div><span>DISCOVER</span><h2>动漫站点</h2></div><p>在新窗口安全打开，不破坏当前工作台</p></div>
-          <div className="site-grid">
-            {resources.map((site, index) => (
-              <a href={site.href} target="_blank" rel="noreferrer" className={`site-card site-card-${index + 1}`} key={site.href}>
-                <div className="site-card-top"><span className="site-logo" style={{ background: site.color }}>{site.icon}</span><span className="site-tag">{site.tag}</span><ExternalLink size={15} /></div>
-                <strong>{site.title}</strong><p>{site.description}</p><small>{site.domain}</small>
-              </a>
-            ))}
-          </div>
-        </section>
-
-        <section className="resource-callout">
-          <Compass size={22} /><div><strong>想加入其他站点？</strong><p>后续可以继续添加官网、资料库、正版播放平台或自建服务。</p></div>
-          <Link href="/assistant"><ListFilter size={16} /> 让助手帮我筛选</Link>
-        </section>
-      </div>
+      </main>
     </div>
   );
 }

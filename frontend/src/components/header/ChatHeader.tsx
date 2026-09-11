@@ -2,6 +2,7 @@
 
 import { Header } from './Header';
 import { useAppTheme } from '@/components/providers/LobeProvider';
+import { Bot } from 'lucide-react';
 
 export default function ChatHeader() {
   const { primaryColor } = useAppTheme();
@@ -10,9 +11,9 @@ export default function ChatHeader() {
     <Header
       leftArea={
         <div className="flex items-center gap-3">
-          <span className="nexus-brand-mark" aria-hidden="true">A</span>
+          <Bot size={20} style={{ color: primaryColor }} aria-hidden="true" />
           <span className="text-xl font-bold font-sans tracking-tight" style={{ color: primaryColor }}>
-            AniNexus
+            AI 动漫助手
           </span>
         </div>
       }
