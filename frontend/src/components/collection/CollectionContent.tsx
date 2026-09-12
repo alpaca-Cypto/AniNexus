@@ -1,10 +1,10 @@
-import { Empty } from '@lobehub/ui';
+import { Empty, toast } from '@lobehub/ui';
 import { SpotlightCard } from '@lobehub/ui/awesome';
-import { useAppTheme } from '@/components/providers/LobeProvider';
-import { useState } from 'react';
-import SmartSubscriptionModal from '@/components/Modal/SmartSubscriptionModal';
+import { useEffect, useState } from 'react';
 import SubjectModal from '@/components/Modal/SubjectModal';
 import MediaCard from './MediaCard';
+import { BellOff, BellRing } from 'lucide-react';
+import { getReminderIdentity, readUpdateReminders, toggleUpdateReminder, UPDATE_REMINDERS_EVENT } from '@/lib/updateReminders';
 
 
 
@@ -14,11 +14,18 @@ interface CollectionContentProps {
 }
 
 export default function CollectionContent({ items = [], onOpenDetail }: CollectionContentProps) {
-  const { isDarkMode } = useAppTheme();
-  const [isSubscriptionModalOpen, setIsSubscriptionModalOpen] = useState(false);
   const [isSubjectModalOpen, setIsSubjectModalOpen] = useState(false);
-  const [selectedItem, setSelectedItem] = useState<any>(null);
   const [selectedSubject, setSelectedSubject] = useState<any>(null);
+  const [reminderIds, setReminderIds] = useState<Set<string>>(new Set());
+
+  useEffect(() => {
+    const syncReminders = () => {
+      setReminderIds(new Set(readUpdateReminders().filter((item) => item.enabled).map((item) => item.id)));
+    };
+    syncReminders();
+    window.addEventListener(UPDATE_REMINDERS_EVENT, syncReminders);
+    return () => window.removeEventListener(UPDATE_REMINDERS_EVENT, syncReminders);
+  }, []);
 
   const handleOpenDetail = (item: any) => {
     // 确保 item 数据格式正确
@@ -32,6 +39,21 @@ export default function CollectionContent({ items = [], onOpenDetail }: Collecti
     setSelectedSubject(formattedItem);
     setIsSubjectModalOpen(true);
     onOpenDetail?.(formattedItem);
+  };
+
+  const handleUpdateReminder = (item: unknown) => {
+    try {
+      const reminder = toggleUpdateReminder(item);
+      toast.success({
+        title: reminder.enabled ? '已开启更新提醒' : '已关闭更新提醒',
+        description: reminder.enabled
+          ? `发现《${reminder.title}》的新动态时会提醒你。`
+          : `《${reminder.title}》将不再显示更新提醒。`,
+        icon: reminder.enabled ? BellRing : BellOff,
+      });
+    } catch {
+      toast.error({ title: '设置失败', description: '浏览器无法保存提醒设置。' });
+    }
   };
   
   if (!items || items.length === 0) {
@@ -48,44 +70,15 @@ export default function CollectionContent({ items = [], onOpenDetail }: Collecti
         columns={5}
         
         renderItem={(item) => {
-          const handleRSS = (data: any) => {
-            // 获取中文名称
-            const subject = data.subject || data;
-            const name_cn = subject?.name_cn || subject?.name || data.title;
-            
-            // 构建 comicat 搜索 RSS URL（国内友好）
-            const rssUrlTemplate = process.env.NEXT_PUBLIC_RSS_URL_TEMPLATE || 'https://comicat.org/rss-%s.xml';
-            const rssUrl = rssUrlTemplate.replace('%s', encodeURIComponent(name_cn));
-            
-            setSelectedItem({ ...data, name_cn, rssUrl });
-            setIsSubscriptionModalOpen(true);
-          };
-
           return (
             <MediaCard
               data={item}
               variant="large"
               onOpenDetail={handleOpenDetail}
-              onRSS={handleRSS}
+              onReminder={handleUpdateReminder}
+              reminderEnabled={reminderIds.has(getReminderIdentity(item).id)}
             />
           );
-        }}
-      />
-
-      {/* 智能订阅模态框 */}
-      <SmartSubscriptionModal
-        open={isSubscriptionModalOpen}
-        onClose={() => {
-          setIsSubscriptionModalOpen(false);
-          setSelectedItem(null);
-        }}
-        onSubmit={(data) => {
-          console.log('订阅数据:', data);
-          // 这里可以添加保存订阅的逻辑
-        }}
-        initialValues={{
-          rssUrl: selectedItem?.rssUrl,
-          name: selectedItem?.name_cn
         }}
       />
 

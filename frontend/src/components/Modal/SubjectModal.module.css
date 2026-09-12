@@ -1,0 +1,110 @@
+.followPanel {
+  display: grid;
+  gap: 16px;
+  padding: 18px;
+  color: #241a24;
+  border: 1px solid #eadce4;
+  border-radius: 16px;
+  background:
+    radial-gradient(circle at 94% 12%, rgba(244, 114, 182, 0.14), transparent 31%),
+    #fffafd;
+}
+
+.followPanelDark {
+  color: #f8edf4;
+  border-color: rgba(255, 255, 255, 0.12);
+  background:
+    radial-gradient(circle at 94% 12%, rgba(244, 114, 182, 0.16), transparent 31%),
+    #211a22;
+}
+
+.reminderRow {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+
+.reminderIcon {
+  width: 42px;
+  height: 42px;
+  flex: 0 0 auto;
+  display: grid;
+  place-items: center;
+  color: #a53869;
+  border-radius: 13px;
+  background: #f9dce9;
+}
+
+.followPanelDark .reminderIcon {
+  color: #ffc3dd;
+  background: rgba(244, 114, 182, 0.16);
+}
+
+.reminderCopy {
+  min-width: 0;
+  flex: 1;
+}
+
+.reminderCopy strong,
+.channelHeader strong {
+  display: block;
+  font-size: 14px;
+  line-height: 1.4;
+}
+
+.reminderCopy p,
+.channelHeader p,
+.channelNote {
+  margin: 4px 0 0;
+  color: #6c5663;
+  font-size: 12px;
+  line-height: 1.55;
+}
+
+.followPanelDark .reminderCopy p,
+.followPanelDark .channelHeader p,
+.followPanelDark .channelNote {
+  color: #c9b6c1;
+}
+
+.channelArea {
+  padding-top: 15px;
+  border-top: 1px solid #eadce4;
+}
+
+.followPanelDark .channelArea {
+  border-top-color: rgba(255, 255, 255, 0.1);
+}
+
+.channelHeader {
+  margin-bottom: 11px;
+}
+
+.channelGrid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 9px;
+}
+
+.channelButton {
+  width: 100%;
+}
+
+.channelNote {
+  margin-top: 10px;
+}
+
+@media (max-width: 620px) {
+  .reminderRow {
+    align-items: flex-start;
+    flex-wrap: wrap;
+  }
+
+  .reminderRow > button {
+    width: 100%;
+  }
+
+  .channelGrid {
+    grid-template-columns: 1fr;
+  }
+}

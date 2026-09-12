@@ -1,0 +1,53 @@
+name: aninexus
+
+services:
+  mysql:
+    image: mysql:8.4.11
+    environment:
+      MYSQL_DATABASE: aninexus
+      MYSQL_USER: aninexus
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD:-aninexus-local-password}
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD:-aninexus-root-password}
+      TZ: Asia/Shanghai
+    command:
+      - --character-set-server=utf8mb4
+      - --collation-server=utf8mb4_0900_ai_ci
+    ports:
+      - "${MYSQL_PORT:-3306}:3306"
+    volumes:
+      - aninexus_mysql:/var/lib/mysql
+    healthcheck:
+      test: ["CMD-SHELL", "mysqladmin ping -h localhost -uroot -p$$MYSQL_ROOT_PASSWORD --silent"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
+  backend:
+    build:
+      context: ./backend
+    environment:
+      DATABASE_URL: mysql+pymysql://aninexus:${MYSQL_PASSWORD:-aninexus-local-password}@mysql:3306/aninexus?charset=utf8mb4
+      DEFAULT_USER_ID: 1
+      AUTO_CREATE_TABLES: "true"
+    ports:
+      - "${BACKEND_PORT:-8000}:8000"
+    depends_on:
+      mysql:
+        condition: service_healthy
+
+  catalog-import:
+    build:
+      context: ./backend
+    profiles: ["import"]
+    environment:
+      DATABASE_URL: mysql+pymysql://aninexus:${MYSQL_PASSWORD:-aninexus-local-password}@mysql:3306/aninexus?charset=utf8mb4
+      PUBLIC_CATALOG_PATH: /data/aninexus-public-catalog.jsonl.gz
+    volumes:
+      - ./backend/data:/data:ro
+    depends_on:
+      mysql:
+        condition: service_healthy
+    command: ["aninexus-import-public-data"]
+
+volumes:
+  aninexus_mysql:

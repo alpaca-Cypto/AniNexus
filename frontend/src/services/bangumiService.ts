@@ -34,7 +34,7 @@ export interface SubjectInfo {
   source: string; // 数据来源：bangumi/douban
   source_id: string; // 原站ID（Bangumi ID或豆瓣ID）
   summary?: string; // 条目简介
-  date?: string; // 发售/放送日期
+  date?: string | null; // 发售/放送日期
   platform?: string; // 平台/类型（如TV、小说、Switch等）
   eps?: number; // 集数（针对动画）
   volumes?: number; // 卷数（针对书籍）

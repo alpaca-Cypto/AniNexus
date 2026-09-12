@@ -1,3 +1,4 @@
+import type { Collection, SearchResult } from './search';
 import { request } from './client';
 
 // 同步收藏请求参数
@@ -33,7 +34,7 @@ export interface CollectionItem {
 // 收藏列表响应
 export interface CollectionListResponse {
   total: number;
-  items: CollectionItem[];
+  items: Array<SearchResult & { collection: Collection }>;
 }
 
 // 获取收藏列表请求参数

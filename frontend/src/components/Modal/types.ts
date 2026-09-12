@@ -1,6 +1,7 @@
 // 1. 定义导入数据的类型结构（根据 bangumi_collection.json）
 export interface Subject {
   id: number;
+  source_id?: number;
   date: string;
   images?: {
     small?: string;

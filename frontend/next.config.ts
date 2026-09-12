@@ -24,6 +24,10 @@ const nextConfig: NextConfig = {
         protocol: 'https',
         hostname: '**.doubanio.com',
       },
+      {
+        protocol: 'https',
+        hostname: 'myanimelist.net',
+      },
     ],
   },
 

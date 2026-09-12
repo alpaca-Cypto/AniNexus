@@ -1,10 +1,11 @@
 import React, { useState, useEffect } from 'react';
 import { Modal, Button, Icon, toast } from '@lobehub/ui';
-import { Rss, ExternalLink, CheckCircle2, XCircle, Globe } from 'lucide-react';
+import { BellRing, BellOff, ExternalLink, CheckCircle2, XCircle, Globe, PlayCircle } from 'lucide-react';
 import { useAppTheme } from '@/components/providers/LobeProvider';
 import SubjectForm from './form/SubjectForm';
-import SmartSubscriptionModal from './SmartSubscriptionModal';
 import { FormData } from './types';
+import { hasUpdateReminder, toggleUpdateReminder, UPDATE_REMINDERS_EVENT } from '@/lib/updateReminders';
+import styles from './SubjectModal.module.css';
 
 interface SubjectModalProps {
   isOpen: boolean;
@@ -14,8 +15,7 @@ interface SubjectModalProps {
 
 const SubjectModal = ({ isOpen, onClose, initialValues }: SubjectModalProps) => {
   const { isDarkMode } = useAppTheme();
-  const [isSubscriptionModalOpen, setIsSubscriptionModalOpen] = useState(false);
-  const [subscriptionData, setSubscriptionData] = useState<any>(null);
+  const [isReminderEnabled, setIsReminderEnabled] = useState(false);
   
   // 解析项目数据的函数
   const parseItemData = (item: any): FormData => {
@@ -25,6 +25,7 @@ const SubjectModal = ({ isOpen, onClose, initialValues }: SubjectModalProps) => 
         title: '',
         subject: {
           id: 0,
+          source_id: 0,
           date: '',
           images: {
             small: '',
@@ -62,6 +63,7 @@ const SubjectModal = ({ isOpen, onClose, initialValues }: SubjectModalProps) => 
       title: String(subject.name_cn || subject.name || item.title || ''),
       subject: {
         id: Number(subject.id || subject.source_id || 0),
+        source_id: Number(subject.source_id || subject.id || 0),
         date: String(subject.date || ''),
         images: subject.images || {
           small: '',
@@ -103,6 +105,15 @@ const SubjectModal = ({ isOpen, onClose, initialValues }: SubjectModalProps) => 
     setFormData(parsedData);
   }, [initialValues]);
 
+  useEffect(() => {
+    if (!isOpen) return;
+
+    const syncReminderState = () => setIsReminderEnabled(hasUpdateReminder(formData));
+    syncReminderState();
+    window.addEventListener(UPDATE_REMINDERS_EVENT, syncReminderState);
+    return () => window.removeEventListener(UPDATE_REMINDERS_EVENT, syncReminderState);
+  }, [formData, isOpen]);
+
   const handleOk = () => {
     try {
       localStorage.setItem(`aninexus-demo-subject-${formData.subject.id}`, JSON.stringify(formData));
@@ -123,9 +134,11 @@ const SubjectModal = ({ isOpen, onClose, initialValues }: SubjectModalProps) => 
     }
   };
 
-  const handleRssSubscribe = () => {
-    const name_cn = formData.subject?.name_cn || formData.subject?.name || formData.title;
-    if (!name_cn) {
+  const getDisplayTitle = () => formData.subject?.name_cn || formData.subject?.name || formData.title;
+
+  const handleUpdateReminder = () => {
+    const title = getDisplayTitle();
+    if (!title) {
       toast.error({
         title: '错误',
         description: '请先填写条目名称',
@@ -134,19 +147,31 @@ const SubjectModal = ({ isOpen, onClose, initialValues }: SubjectModalProps) => 
       });
       return;
     }
-    
-    // 构建 comicat 搜索 RSS URL（国内友好）
-    const rssUrlTemplate = process.env.NEXT_PUBLIC_RSS_URL_TEMPLATE || 'https://comicat.org/rss-%s.xml';
-    const rssUrl = rssUrlTemplate.replace('%s', encodeURIComponent(name_cn));
-    
-    // 设置订阅数据并打开模态框
-    setSubscriptionData({ name: name_cn, rssUrl });
-    setIsSubscriptionModalOpen(true);
+
+    try {
+      const reminder = toggleUpdateReminder(formData);
+      setIsReminderEnabled(reminder.enabled);
+      toast.success({
+        title: reminder.enabled ? '已开启更新提醒' : '已关闭更新提醒',
+        description: reminder.enabled
+          ? `发现《${title}》的新动态时会在 AniNexus 提醒你。`
+          : `《${title}》将不再显示更新提醒。`,
+        icon: reminder.enabled ? BellRing : BellOff,
+        duration: 3000,
+      });
+    } catch {
+      toast.error({
+        title: '设置失败',
+        description: '浏览器无法保存提醒设置。',
+        icon: XCircle,
+        duration: 3000,
+      });
+    }
   };
 
-  const handleBilibiliRedirect = () => {
-    const name_cn = formData.subject?.name_cn || formData.subject?.name || formData.title;
-    if (!name_cn) {
+  const openPlatformSearch = (platform: 'bilibili' | 'tencent' | 'iqiyi') => {
+    const title = getDisplayTitle();
+    if (!title) {
       toast.error({
         title: '错误',
         description: '请先填写条目名称',
@@ -155,32 +180,47 @@ const SubjectModal = ({ isOpen, onClose, initialValues }: SubjectModalProps) => 
       });
       return;
     }
-    
-    // 构建 B 站搜索 URL
-    const bilibiliUrl = `https://search.bilibili.com/all?keyword=${encodeURIComponent(name_cn)}`;
-    
-    // 打开新窗口
-    window.open(bilibiliUrl, '_blank');
+
+    const keyword = encodeURIComponent(title);
+    const urls = {
+      bilibili: `https://search.bilibili.com/all?keyword=${keyword}`,
+      tencent: `https://v.qq.com/x/search/?q=${keyword}`,
+      iqiyi: `https://so.iqiyi.com/so/q_${keyword}`,
+    };
+    window.open(urls[platform], '_blank', 'noopener,noreferrer');
   };
 
-  const handleBangumiRedirect = () => {
-    const subjectId = formData.subject?.id;
-    if (!subjectId || subjectId === 0) {
+  const sourceWebsite = (() => {
+    const source = formData.subject?.source?.toLocaleLowerCase();
+    const sourceId = formData.subject?.source_id || formData.subject?.id;
+    if (!sourceId) return null;
+    if (source === 'myanimelist') {
+      return {
+        label: '访问 MyAnimeList 资料页',
+        url: `https://myanimelist.net/${formData.subject.type === 2 ? 'anime' : 'manga'}/${sourceId}`,
+      };
+    }
+    if (source === 'bangumi') {
+      return { label: '访问 Bangumi 资料页', url: `https://bgm.tv/subject/${sourceId}` };
+    }
+    return null;
+  })();
+
+  const handleSourceWebsiteRedirect = () => {
+    if (!sourceWebsite) {
       toast.error({
         title: '错误',
-        description: '条目ID无效，无法跳转到Bangumi',
+        description: '当前条目没有可用的来源网站地址',
         icon: XCircle,
         duration: 3000,
       });
       return;
     }
-    
-    // 构建 Bangumi 网站链接
-    const bangumiUrl = `https://bangumi.tv/subject/${subjectId}`;
-    
-    // 打开新窗口
-    window.open(bangumiUrl, '_blank');
+
+    window.open(sourceWebsite.url, '_blank', 'noopener,noreferrer');
   };
+
+  const supportsVideoPlatforms = [2, 6].includes(formData.subject?.type || 0);
 
   return (
     <>
@@ -199,51 +239,54 @@ const SubjectModal = ({ isOpen, onClose, initialValues }: SubjectModalProps) => 
           {/* 主体表单 */}
           <SubjectForm value={formData} onChange={setFormData} />
           
-          {/* 底部按钮区域 */}
-          <div style={{ display: 'flex', gap: 12, marginTop: 8 }}>
-            <Button 
-              type="default" 
-              icon={<Icon icon={Rss} />}
-              onClick={handleRssSubscribe}
-              style={{ flex: 1 }}
-            >
-              RSS 订阅
-            </Button>
-            <Button 
-              type="default" 
-              icon={<Icon icon={ExternalLink} />}
-              onClick={handleBilibiliRedirect}
-              style={{ flex: 1 }}
-            >
-              B 站跳转
-            </Button>
-            <Button 
-              type="default" 
-              icon={<Icon icon={Globe} />}
-              onClick={handleBangumiRedirect}
-              style={{ flex: 1 }}
-            >
-              Bangumi
-            </Button>
-          </div>
+          <section className={`${styles.followPanel} ${isDarkMode ? styles.followPanelDark : ''}`} aria-label="更新与观看">
+            <div className={styles.reminderRow}>
+              <span className={styles.reminderIcon} aria-hidden="true">
+                <Icon icon={isReminderEnabled ? BellRing : BellOff} />
+              </span>
+              <div className={styles.reminderCopy}>
+                <strong>更新提醒</strong>
+                <p>关注作品的新集和放送动态，只发送提醒，不会自动下载任何文件。</p>
+              </div>
+              <Button
+                type={isReminderEnabled ? 'primary' : 'default'}
+                icon={<Icon icon={isReminderEnabled ? CheckCircle2 : BellRing} />}
+                onClick={handleUpdateReminder}
+              >
+                {isReminderEnabled ? '已开启提醒' : '开启提醒'}
+              </Button>
+            </div>
+
+            {supportsVideoPlatforms && (
+              <div className={styles.channelArea}>
+                <div className={styles.channelHeader}>
+                  <strong>正版观看渠道</strong>
+                  <p>前往视频平台搜索当前作品，查看所在地区的版权与播放信息。</p>
+                </div>
+                <div className={styles.channelGrid}>
+                  <Button className={styles.channelButton} icon={<Icon icon={PlayCircle} />} onClick={() => openPlatformSearch('bilibili')}>
+                    哔哩哔哩
+                  </Button>
+                  <Button className={styles.channelButton} icon={<Icon icon={PlayCircle} />} onClick={() => openPlatformSearch('tencent')}>
+                    腾讯视频
+                  </Button>
+                  <Button className={styles.channelButton} icon={<Icon icon={PlayCircle} />} onClick={() => openPlatformSearch('iqiyi')}>
+                    爱奇艺
+                  </Button>
+                </div>
+                <p className={styles.channelNote}>平台是否提供观看服务，以搜索结果和当地版权信息为准。</p>
+              </div>
+            )}
+
+            {sourceWebsite && (
+              <Button type="text" icon={<Icon icon={Globe} />} onClick={handleSourceWebsiteRedirect}>
+                <span>{sourceWebsite.label}</span>
+                <Icon icon={ExternalLink} size={14} />
+              </Button>
+            )}
+          </section>
         </div>
       </Modal>
-      
-      {/* 智能订阅模态框 */}
-      <SmartSubscriptionModal
-        open={isSubscriptionModalOpen}
-        onClose={() => {
-          setIsSubscriptionModalOpen(false);
-          setSubscriptionData(null);
-        }}
-        onSubmit={(data) => {
-          console.log('订阅数据:', data);
-          // 订阅成功后关闭模态框
-          setIsSubscriptionModalOpen(false);
-          setSubscriptionData(null);
-        }}
-        initialValues={subscriptionData}
-      />
     </>
   );
 };

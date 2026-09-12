@@ -1,5 +1,5 @@
 import { Tag, ActionIcon, Tooltip } from '@lobehub/ui';
-import { Rss, Plus, Tv, Clock, Film, Book, X } from 'lucide-react';
+import { BellRing, Plus, Tv, Clock, Film, Book, X } from 'lucide-react';
 import { useAppTheme } from '@/components/providers/LobeProvider';
 import BilibiliIcon from './BilibiliIcon';
 
@@ -32,12 +32,13 @@ interface MediaCardProps {
   category?: string; // 新增：用于决定配色
   variant?: 'compact' | 'standard' | 'large' | 'timeline'; // 定义多种尺寸
   onOpenDetail?: (data: any) => void;
-  onRSS?: (data: any) => void;
+  onReminder?: (data: any) => void;
+  reminderEnabled?: boolean;
   onDelete?: (data: any) => void;
   currentHeight?: number; // 传入当前容器高度
 }
 
-export const MediaCard = ({ data, category, variant = 'standard', onOpenDetail, onRSS, onDelete, currentHeight }: MediaCardProps) => {
+export const MediaCard = ({ data, category, variant = 'standard', onOpenDetail, onReminder, reminderEnabled = false, onDelete, currentHeight }: MediaCardProps) => {
   const { isDarkMode } = useAppTheme();
   
   // --- 数据清洗 (逻辑封装在内部) ---
@@ -84,9 +85,9 @@ export const MediaCard = ({ data, category, variant = 'standard', onOpenDetail, 
     }
   };
 
-  const handleRSS = (e: React.MouseEvent) => {
+  const handleReminder = (e: React.MouseEvent) => {
     e.stopPropagation();
-    onRSS?.(data);
+    onReminder?.(data);
   };
 
   const handleDelete = (e: React.MouseEvent) => {
@@ -347,15 +348,16 @@ export const MediaCard = ({ data, category, variant = 'standard', onOpenDetail, 
             style={{ color: isDarkMode ? 'rgba(255,255,255,0.9)' : 'rgba(0,0,0,0.8)' }}
           />
 
-          {/* 订阅 RSS */}
+          {/* 更新提醒 */}
           <ActionIcon
-            icon={Rss}
-            title="RSS 订阅"
+            icon={BellRing}
+            title={reminderEnabled ? '关闭更新提醒' : '开启更新提醒'}
+            aria-label={reminderEnabled ? '关闭更新提醒' : '开启更新提醒'}
             glass
             size={variant === 'compact' ? 'small' : 'middle'}
-            onClick={handleRSS}
-            variant="outlined"
-            style={{ color: isDarkMode ? 'rgba(255,255,255,0.9)' : 'rgba(0,0,0,0.8)' }}
+            onClick={handleReminder}
+            variant={reminderEnabled ? 'filled' : 'outlined'}
+            style={{ color: reminderEnabled ? '#a53869' : isDarkMode ? 'rgba(255,255,255,0.9)' : 'rgba(0,0,0,0.8)' }}
           />
 
           {/* 更多/详情 (底部) */}
