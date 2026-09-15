@@ -1,16 +1,212 @@
-from typing import Annotated
+from datetime import date, datetime
+from decimal import Decimal, InvalidOperation
+from typing import Annotated, Any
 
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
 from sqlalchemy import func, or_, select
 from sqlalchemy.orm import Session
 
+from aninexus_backend.api.bangumi import fetch_user_collections
 from aninexus_backend.api.dependencies import current_user_id
-from aninexus_backend.api.schemas import CollectionUpsert
+from aninexus_backend.api.schemas import (
+    BangumiCollectionSync,
+    CollectionSave,
+    CollectionUpsert,
+)
 from aninexus_backend.api.serializers import serialize_collection, serialize_subject
 from aninexus_backend.db import get_session
 from aninexus_backend.models import Collection, Subject
 
 router = APIRouter(prefix="/collections", tags=["collections"])
+
+
+def _optional_date(value: Any) -> date | None:
+    try:
+        return date.fromisoformat(str(value)) if value else None
+    except ValueError:
+        return None
+
+
+def _optional_decimal(value: Any) -> Decimal | None:
+    if value is None or value == "":
+        return None
+    try:
+        return Decimal(str(value))
+    except (InvalidOperation, ValueError):
+        return None
+
+
+def _bangumi_image(subject: dict[str, Any]) -> str | None:
+    images = subject.get("images")
+    if not isinstance(images, dict):
+        return None
+    for key in ("large", "common", "medium", "small", "grid"):
+        value = images.get(key)
+        if isinstance(value, str) and value:
+            return value.replace("http://", "https://", 1)
+    return None
+
+
+@router.post("")
+def save_collection(
+    payload: CollectionSave,
+    session: Annotated[Session, Depends(get_session)],
+    user_id: Annotated[int, Depends(current_user_id)],
+) -> dict:
+    incoming_subject = payload.subject
+    subject = session.scalar(
+        select(Subject).where(
+            Subject.source == incoming_subject.source,
+            Subject.source_id == incoming_subject.source_id,
+            Subject.subject_type == incoming_subject.type,
+        )
+    )
+    if subject is None:
+        subject = Subject(
+            source=incoming_subject.source,
+            source_id=incoming_subject.source_id,
+            subject_type=incoming_subject.type,
+            name=incoming_subject.name,
+        )
+        session.add(subject)
+        session.flush()
+
+    subject.name = incoming_subject.name
+    subject.name_cn = incoming_subject.name_cn or None
+    subject.summary = incoming_subject.summary or None
+    subject.date = incoming_subject.date
+    subject.platform = incoming_subject.platform or None
+    subject.eps = incoming_subject.eps
+    subject.volumes = incoming_subject.volumes
+    subject.image = incoming_subject.image or None
+    subject.score = _optional_decimal(incoming_subject.score)
+    subject.tags = incoming_subject.tags
+
+    collection = session.scalar(
+        select(Collection).where(
+            Collection.user_id == user_id,
+            Collection.subject_id == subject.id,
+        )
+    )
+    if collection is None:
+        collection = Collection(user_id=user_id, subject_id=subject.id)
+        session.add(collection)
+
+    incoming_collection = payload.collection
+    collection.collection_type = incoming_collection.type
+    collection.rate = incoming_collection.rate
+    collection.comment = incoming_collection.comment or None
+    collection.ep_status = incoming_collection.ep_status
+    collection.vol_status = incoming_collection.vol_status
+    collection.tags = incoming_collection.tags
+    session.commit()
+    session.refresh(collection)
+    collection.subject = subject
+    return {
+        "message": "收藏信息已保存",
+        "collection": serialize_collection(collection),
+        "subject": serialize_subject(subject),
+    }
+
+
+@router.post("/sync/bgm")
+def sync_bangumi_collections(
+    payload: BangumiCollectionSync,
+    request: Request,
+    session: Annotated[Session, Depends(get_session)],
+    user_id: Annotated[int, Depends(current_user_id)],
+) -> dict:
+    username, records = fetch_user_collections(
+        request.app.state.settings,
+        subject_type=payload.subject_type,
+        collection_type=payload.collection_type,
+    )
+    imported = 0
+    for record in records:
+        remote_subject = record.get("subject")
+        if not isinstance(remote_subject, dict):
+            continue
+        remote_id = remote_subject.get("id") or record.get("subject_id")
+        remote_type = remote_subject.get("type") or record.get("subject_type")
+        if not remote_id or not remote_type or not remote_subject.get("name"):
+            continue
+
+        subject = session.scalar(
+            select(Subject).where(
+                Subject.source == "bangumi",
+                Subject.source_id == str(remote_id),
+                Subject.subject_type == int(remote_type),
+            )
+        )
+        if subject is None:
+            subject = Subject(
+                source="bangumi",
+                source_id=str(remote_id),
+                subject_type=int(remote_type),
+                name=str(remote_subject["name"]),
+            )
+            session.add(subject)
+            session.flush()
+
+        subject.name = str(remote_subject["name"])
+        subject.name_cn = remote_subject.get("name_cn") or None
+        subject.summary = remote_subject.get("short_summary") or remote_subject.get("summary")
+        subject.date = _optional_date(remote_subject.get("date"))
+        subject.platform = remote_subject.get("platform") or None
+        subject.eps = remote_subject.get("eps") or remote_subject.get("total_episodes")
+        subject.volumes = remote_subject.get("volumes")
+        subject.image = _bangumi_image(remote_subject)
+        rating = remote_subject.get("rating")
+        if isinstance(rating, dict):
+            subject.score = _optional_decimal(rating.get("score"))
+        subject.rank = remote_subject.get("rank")
+        collection_stats = remote_subject.get("collection")
+        if isinstance(collection_stats, dict):
+            subject.popularity = collection_stats.get("total")
+        remote_tags = remote_subject.get("tags")
+        if isinstance(remote_tags, list):
+            parsed_tags = [
+                str(tag.get("name") if isinstance(tag, dict) else tag).strip()
+                for tag in remote_tags
+                if (tag.get("name") if isinstance(tag, dict) else tag)
+            ]
+            if parsed_tags:
+                subject.tags = parsed_tags
+
+        collection = session.scalar(
+            select(Collection).where(
+                Collection.user_id == user_id,
+                Collection.subject_id == subject.id,
+            )
+        )
+        if collection is None:
+            collection = Collection(user_id=user_id, subject_id=subject.id)
+            session.add(collection)
+        collection.collection_type = int(record.get("type") or 1)
+        collection.rate = record.get("rate") or None
+        collection.comment = record.get("comment") or None
+        collection.ep_status = int(record.get("ep_status") or 0)
+        collection.vol_status = int(record.get("vol_status") or 0)
+        collection.tags = [str(tag) for tag in (record.get("tags") or [])]
+        updated_at = record.get("updated_at")
+        if updated_at:
+            try:
+                collection.updated_at = datetime.fromisoformat(
+                    str(updated_at).replace("Z", "+00:00")
+                ).replace(tzinfo=None)
+            except ValueError:
+                pass
+        imported += 1
+
+    session.commit()
+    return {
+        "message": "Bangumi 收藏同步完成",
+        "username": username,
+        "sync_count": len(records),
+        "import_count": imported,
+        "subject_type": payload.subject_type,
+        "source": "bangumi",
+    }
 
 
 @router.get("")

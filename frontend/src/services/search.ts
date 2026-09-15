@@ -24,7 +24,7 @@ interface Subject {
   source: string;
   platform?: string;
   image?: string;
-  source_id?: number;
+  source_id?: string | number;
   rating?: {
     score: number;
   };
@@ -43,11 +43,25 @@ interface Collection {
 interface SearchResult {
   subject: Subject;
   collection?: Collection;
+  primary_source?: string;
+  score_source?: string | null;
+  data_updated_at?: string;
+  is_stale?: boolean;
 }
 
 interface SearchResponse {
   items: SearchResult[];
   total: number;
+}
+
+interface SimilarRecommendation {
+  subject: Subject;
+  relevance: number;
+  reasons: string[];
+}
+
+interface SimilarResponse {
+  items: SimilarRecommendation[];
 }
 
 // 搜索参数接口
@@ -132,6 +146,17 @@ class SearchService {
     return response.json();
   }
 
+  async getSimilarSubjects(id: number, limit = 10): Promise<SimilarResponse> {
+    const response = await fetch(`${this.baseUrl}/subjects/${id}/similar?limit=${limit}`, {
+      method: 'GET',
+      headers: { 'Content-Type': 'application/json' },
+    });
+    if (!response.ok) {
+      throw new Error(`Similar subjects failed: ${response.statusText}`);
+    }
+    return response.json();
+  }
+
   /**
    * 加载更多搜索结果
    * @param params 搜索参数
@@ -146,4 +171,12 @@ class SearchService {
 export const searchService = new SearchService();
 
 // 导出类型
-export type { Subject, Collection, SearchResult, SearchParams, SearchResponse };
+export type {
+  Subject,
+  Collection,
+  SearchResult,
+  SearchParams,
+  SearchResponse,
+  SimilarRecommendation,
+  SimilarResponse,
+};

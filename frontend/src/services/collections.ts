@@ -3,7 +3,8 @@ import { request } from './client';
 
 // 同步收藏请求参数
 export interface CollectionSyncRequest {
-  subject_type?: string;
+  subject_type?: number;
+  collection_type?: number;
   limit?: number;
   offset?: number;
 }
@@ -14,7 +15,7 @@ export interface CollectionSyncResponse {
   username: string;
   sync_count: number;
   import_count: number;
-  subject_type?: string;
+  subject_type?: number;
   source: string;
 }
 
@@ -37,6 +38,39 @@ export interface CollectionListResponse {
   items: Array<SearchResult & { collection: Collection }>;
 }
 
+export interface CollectionSaveRequest {
+  subject: {
+    source: string;
+    source_id: string;
+    type: number;
+    name: string;
+    name_cn?: string | null;
+    summary?: string | null;
+    date?: string | null;
+    platform?: string | null;
+    eps?: number | null;
+    volumes?: number | null;
+    image?: string | null;
+    score?: number | null;
+    tags?: string[];
+  };
+  collection: {
+    type: number;
+    rate?: number | null;
+    comment?: string | null;
+    ep_status?: number;
+    vol_status?: number;
+    tags?: string[];
+  };
+}
+
+export type CollectionSaveResponse = SearchResult & {
+  message: string;
+  collection: Collection;
+};
+
+export const COLLECTIONS_UPDATED_EVENT = 'aninexus:collections-updated';
+
 // 获取收藏列表请求参数
 export interface GetCollectionsRequest {
   subject_type?: number;
@@ -50,11 +84,19 @@ export interface GetCollectionsRequest {
 // 豆瓣 JSON 上传请求参数
 export interface DoubanUploadRequest {
   subject_type?: string;
-  data: any[];
+  data: unknown[];
 }
 
 // 收藏服务
 export const collectionService = {
+  // 保存单个条目及其收藏状态，存在时更新，不存在时创建
+  async saveCollection(data: CollectionSaveRequest): Promise<CollectionSaveResponse> {
+    return request<CollectionSaveResponse>('/collections', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  },
+
   // 同步用户的 Bangumi 收藏数据到本地数据库
   async syncBgm(data: CollectionSyncRequest = {}): Promise<CollectionSyncResponse> {
     return request<CollectionSyncResponse>('/collections/sync/bgm', {

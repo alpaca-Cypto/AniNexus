@@ -1,4 +1,4 @@
-import React, { useRef, useState, useEffect } from 'react';
+import React, { useRef, useState } from 'react';
 
 interface ResizableCardWrapperProps {
   id: string;
@@ -29,12 +29,8 @@ const ResizableCardWrapper: React.FC<ResizableCardWrapperProps> = ({
   const startXRef = useRef<number>(0);
   const startDayRef = useRef<number>(day);
   const startDurationRef = useRef<number>(duration);
-  const columnWidthRef = useRef<number>(columnWidth || 100);
-
-  // 计算当前卡片宽度
-  const getCurrentWidth = (currentDuration: number = duration) => {
-    return currentDuration * columnWidthRef.current + (currentDuration - 1) * gap;
-  };
+  const gridSizeRef = useRef((columnWidth ?? 100) + gap);
+  const [renderGridSize, setRenderGridSize] = useState((columnWidth ?? 100) + gap);
 
   // 处理指针按下事件
   const handlePointerDown = (e: React.PointerEvent, handle: 'left' | 'right') => {
@@ -45,6 +41,12 @@ const ResizableCardWrapper: React.FC<ResizableCardWrapperProps> = ({
     startXRef.current = e.clientX;
     startDayRef.current = day;
     startDurationRef.current = duration;
+    const measuredColumnWidth = columnWidth
+      ?? cardRef.current?.closest<HTMLElement>('[data-column]')?.clientWidth
+      ?? 100;
+    const nextGridSize = measuredColumnWidth + gap;
+    gridSizeRef.current = nextGridSize;
+    setRenderGridSize(nextGridSize);
     setTempDayOffset(0);
     setTempDuration(duration);
     
@@ -59,7 +61,7 @@ const ResizableCardWrapper: React.FC<ResizableCardWrapperProps> = ({
     if (!isResizingRef.current || !onResize) return;
     
     const deltaX = e.clientX - startXRef.current;
-    const gridSize = columnWidthRef.current + gap;
+    const gridSize = gridSizeRef.current;
     const gridDiff = Math.round(deltaX / gridSize);
     
     let newDay = startDayRef.current;
@@ -83,7 +85,7 @@ const ResizableCardWrapper: React.FC<ResizableCardWrapperProps> = ({
   const handlePointerUp = (e: PointerEvent) => {
     if (isResizingRef.current && onResize) {
       const deltaX = e.clientX - startXRef.current;
-      const gridSize = columnWidthRef.current + gap;
+      const gridSize = gridSizeRef.current;
       const gridDiff = Math.round(deltaX / gridSize);
       
       let newDay = startDayRef.current;
@@ -112,21 +114,10 @@ const ResizableCardWrapper: React.FC<ResizableCardWrapperProps> = ({
     document.removeEventListener('pointercancel', handlePointerUp);
   };
 
-  // 初始化列宽
-  useEffect(() => {
-    if (!columnWidth && cardRef.current) {
-      // 尝试从父元素计算列宽
-      const parent = cardRef.current.closest('[data-column]');
-      if (parent) {
-        columnWidthRef.current = parent.clientWidth;
-      }
-    }
-  }, [columnWidth]);
-
   // 计算当前渲染使用的 duration
   const renderDuration = isResizing ? tempDuration : duration;
   // 计算当前渲染使用的偏移量
-  const renderOffset = tempDayOffset * (columnWidthRef.current + gap);
+  const renderOffset = tempDayOffset * renderGridSize;
 
   return (
     <div

@@ -1,9 +1,11 @@
 "use client";
 
+import Image from "next/image";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Bot, CalendarDays, Library, Search, UserRound } from "lucide-react";
+import { Bot, CalendarDays, Library, Search } from "lucide-react";
 import { ThemeModeSwitcher } from "@/features/Theme/ThemeModeSwitcher";
+import { AuthControl } from "@/components/auth/AuthControl";
 
 const navigation = [
   { href: "/", label: "搜索", icon: Search },
@@ -18,8 +20,13 @@ export function SiteHeader() {
   return (
     <header className="site-header">
       <Link className="site-header__brand" href="/" aria-label="AniNexus 首页">
-        <span aria-hidden="true">AN</span>
-        <strong>AniNexus</strong>
+        <span className="site-header__brand-mark" aria-hidden="true">
+          <Image src="/branding/aninexus-an-alpaca-1cf0fe78.png" alt="" width={40} height={40} priority />
+        </span>
+        <strong className="site-header__wordmark">
+          <span>Ani</span>
+          <b>Nexus</b>
+        </strong>
       </Link>
 
       <nav className="site-header__nav" aria-label="主导航">
@@ -33,10 +40,7 @@ export function SiteHeader() {
 
       <div className="site-header__tools">
         <ThemeModeSwitcher />
-        <Link className={pathname === "/Personal" ? "site-header__profile active" : "site-header__profile"} href="/Personal" aria-label="我的空间" aria-current={pathname === "/Personal" ? "page" : undefined}>
-          <UserRound size={17} aria-hidden="true" />
-          <span>我的空间</span>
-        </Link>
+        <AuthControl />
       </div>
     </header>
   );

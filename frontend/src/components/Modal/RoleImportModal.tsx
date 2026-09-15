@@ -1,12 +1,13 @@
 import React, { useState, useRef } from 'react';
 import { Modal, Button, Alert } from 'antd';
-import { Upload, CloudUpload, FileText } from 'lucide-react';
+import { CloudUpload } from 'lucide-react';
 import { Flexbox } from '@lobehub/ui';
+import type { Role } from '@/store/models';
 
 interface RoleImportModalProps {
   isOpen: boolean;
   onClose: () => void;
-  onImport: (roles: any) => void;
+  onImport: (roles: Role[]) => void;
 }
 
 export default function RoleImportModal({ isOpen, onClose, onImport }: RoleImportModalProps) {
@@ -33,10 +34,13 @@ export default function RoleImportModal({ isOpen, onClose, onImport }: RoleImpor
     reader.onload = (e) => {
       try {
         const content = e.target?.result as string;
-        const roles = JSON.parse(content);
-        onImport(roles);
+        const roles: unknown = JSON.parse(content);
+        if (!Array.isArray(roles)) {
+          throw new Error('角色配置必须是数组');
+        }
+        onImport(roles as Role[]);
         onClose();
-      } catch (error) {
+      } catch {
         setFileError('JSON文件格式错误');
       }
     };

@@ -1,7 +1,6 @@
 import React, { useState } from 'react';
 import { Sparkles, UserCircle, Plus } from 'lucide-react';
 import { DraggablePanel, Flexbox, ActionIcon, List, Avatar } from '@lobehub/ui';
-import { useAppTheme } from '@/components/providers/LobeProvider';
 import { useRoleStore } from '@/store/useRoleStore';
 import { useHasHydrated } from '@/store/useHasHydrated';
 import PRESET_ROLES from '@/store/presetRoles';

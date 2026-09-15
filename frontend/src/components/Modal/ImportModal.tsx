@@ -1,6 +1,7 @@
 import React, { useState, useRef, useEffect } from 'react';
+import Image from 'next/image';
 import { Modal, Button, Input, Icon, Tooltip, toast, Tag } from '@lobehub/ui';
-import { Search, FileJson, BookOpen, XCircle, CheckCircle2, Star } from 'lucide-react';
+import { FileJson, BookOpen, XCircle, CheckCircle2, Star } from 'lucide-react';
 import { searchService, SearchResult } from '../../services/search';
 import { collectionService } from '../../services/collections';
 import { useAppTheme } from '@/components/providers/LobeProvider';
@@ -331,10 +332,11 @@ const ImportModal = ({ isOpen, onClose }: ImportModalProps) => {
     
     if (subject) {
       const newFormData: FormData = {
-        id: subject.source_id || 0,
+        id: subject.id,
         title: subject.name_cn || subject.name || keyword,
         subject: {
-          id: subject.source_id || 0,
+          id: subject.id,
+          source_id: subject.source_id,
           date: subject.date || '',
           images: subject.images || {
             small: '',
@@ -483,9 +485,12 @@ const ImportModal = ({ isOpen, onClose }: ImportModalProps) => {
                       >
                         {/* 封面图 */}
                         {cover && (
-                          <img
+                          <Image
                             src={cover}
                             alt={subject.name}
+                            width={60}
+                            height={80}
+                            unoptimized
                             style={{ 
                               width: 60, 
                               height: 80, 

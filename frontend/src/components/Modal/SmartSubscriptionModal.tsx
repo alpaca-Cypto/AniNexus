@@ -1,13 +1,11 @@
-import React, { useState, useEffect } from 'react';
-import { Modal, Form, Input, Collapse, Switch, Button, Select, Space, Card, AutoComplete, Tag, Alert } from 'antd';
-import { Wand2, FolderOpen, Rss, Link, Save, CheckCircle2, AlertCircle } from 'lucide-react';
+import React, { useCallback, useState, useEffect } from 'react';
+import { Modal, Form, Input, Collapse, Switch, Button, Select, Space, AutoComplete, Alert } from 'antd';
+import { Wand2, FolderOpen, Rss, Save } from 'lucide-react';
 import { toast } from '@lobehub/ui';
 import { Icon } from '@lobehub/ui';
 import { MessageModal } from '@lobehub/ui/chat';
 import { getRssRules, upsertRssFeed, setRssRule } from '@/services/rss'; 
-import { RssRule, AddRssFeedRequest, SetRssRuleRequest, TorrentParams } from './types';
-
-const { Panel } = Collapse;
+import { RssRule } from './types';
 
 // 定义表单字段
 interface SmartSubscriptionFormValues {
@@ -24,6 +22,11 @@ interface SmartSubscriptionFormValues {
   priority?: number;
 }
 
+type SmartSubscriptionInitialValues = Partial<SmartSubscriptionFormValues> & { name?: string };
+
+const getErrorMessage = (error: unknown, fallback: string) =>
+  error instanceof Error && error.message ? error.message : fallback;
+
 const SmartSubscriptionModal = ({ 
   open, 
   onClose, 
@@ -32,15 +35,13 @@ const SmartSubscriptionModal = ({
 }: { 
   open: boolean; 
   onClose: () => void; 
-  onSubmit?: (data: any) => void; 
-  initialValues?: any 
+  onSubmit?: (data: SmartSubscriptionFormValues) => void;
+  initialValues?: SmartSubscriptionInitialValues;
 }) => {
   const [form] = Form.useForm();
   
   // 监听表单中的 ruleName 变化
   const currentRuleName = Form.useWatch('ruleName', form);
-  
-  const [isSmartParsing, setIsSmartParsing] = useState(false);
   
   // 现有规则数据
   const [existingRulesData, setExistingRulesData] = useState<Record<string, RssRule>>({});
@@ -53,7 +54,28 @@ const SmartSubscriptionModal = ({
   const [messageModalOpen, setMessageModalOpen] = useState(false);
   const [messageModalValue, setMessageModalValue] = useState('');
 
+  const fetchRules = useCallback(async () => {
+    try {
+      const response = await getRssRules();
+      setExistingRulesData(response.rules);
+      const options = Object.keys(response.rules).map((key) => ({
+        value: key,
+        label: key,
+      }));
+      setRuleOptions(options);
+    } catch (error: unknown) {
+      console.error('Failed to fetch rules', error);
+      toast.error({
+        title: '获取规则失败',
+        description: getErrorMessage(error, '请检查 qBittorrent 是否启动并正常运行')
+      });
+      setExistingRulesData({});
+      setRuleOptions([]);
+    }
+  }, []);
+
   useEffect(() => {
+    let active = true;
     if (open) {
       form.resetFields();
       form.setFieldsValue({
@@ -63,9 +85,12 @@ const SmartSubscriptionModal = ({
         feedName: initialValues?.name,
         ...initialValues,
       });
-      fetchRules();
+      queueMicrotask(() => {
+        if (active) void fetchRules();
+      });
     }
-  }, [open, initialValues, form]);
+    return () => { active = false; };
+  }, [open, initialValues, form, fetchRules]);
 
   // 新增：监听规则名称变化，实现自动回填逻辑
   useEffect(() => {
@@ -89,28 +114,6 @@ const SmartSubscriptionModal = ({
     }
   }, [currentRuleName, existingRulesData, form]);
 
-  const fetchRules = async () => {
-    try {
-      const response = await getRssRules();
-      setExistingRulesData(response.rules);
-      const options = Object.keys(response.rules).map((key) => ({
-        value: key,
-        label: key,
-      }));
-      setRuleOptions(options);
-    } catch (error: any) {
-      console.error('Failed to fetch rules', error);
-      // 显示错误信息给用户
-      toast.error({ 
-        title: '获取规则失败', 
-        description: error.message || '请检查 qBittorrent 是否启动并正常运行' 
-      });
-      // 清空现有规则数据，避免使用旧数据
-      setExistingRulesData({});
-      setRuleOptions([]);
-    }
-  };
-
   const handleSmartFillStart = () => {
     const url = form.getFieldValue('rssUrl');
     if (!url) {
@@ -119,28 +122,6 @@ const SmartSubscriptionModal = ({
     }
     setMessageModalValue('点击发送，开始智能分析...');
     setMessageModalOpen(true);
-  };
-
-  const handleSmartFillProcess = async () => {
-    setMessageModalValue('AI 正在分析...');
-    setIsSmartParsing(true);
-    
-    setTimeout(() => {
-      const aiResult = {
-        feedName: '迷宫饭 (Dungeon Meshi)', 
-        ruleName: '迷宫饭 Auto', 
-        mustContain: '迷宫饭.*1080p',
-        mustNotContain: '720p|合集',
-        savePath: '/downloads/Anime/2024/迷宫饭',
-        category: ['Anime'], // 修正为数组
-        useRegex: true
-      };
-
-      form.setFieldsValue(aiResult);
-      setIsSmartParsing(false);
-      setMessageModalOpen(false);
-      toast.success({ title: '智能填充完成', description: '请确认规则配置' });
-    }, 1200);
   };
 
   const handleOk = async () => {
@@ -156,9 +137,7 @@ const SmartSubscriptionModal = ({
       const targetExistingRule = existingRulesData[ruleName];
 
       // 处理 category 字段，将数组转回字符串
-      const assignedCategoryStr = Array.isArray(values.category) && values.category.length > 0 
-        ? values.category[0] 
-        : (values.category as any as string) || '';
+      const assignedCategoryStr = values.category?.[0] ?? '';
 
       if (targetExistingRule) {
         // === 情况 A: 规则已存在 (更新) ===
@@ -233,20 +212,20 @@ const SmartSubscriptionModal = ({
       onSubmit?.(values);
       onClose();
 
-    } catch (error: any) {
+    } catch (error: unknown) {
       console.error(error);
       // 增加 QB 未启动时的错误处理
       let errorTitle = '操作失败';
-      let errorDesc = error.message;
+      let errorDesc = getErrorMessage(error, '未知错误');
       
       // 检测是否为 QB 未启动的错误
-      if (error.message.includes('无法连接到 qBittorrent') || error.message.includes('qBittorrent 登录失败')) {
+      if (errorDesc.includes('无法连接到 qBittorrent') || errorDesc.includes('qBittorrent 登录失败')) {
         errorTitle = 'qBittorrent 未启动或连接失败';
         errorDesc = '请确保 qBittorrent 已启动且 Web UI 已启用，然后重试';
       }
       
       // 检测是否为 QB 代理禁用的错误
-      if (error.message.includes('QBittorrent proxy is disabled')) {
+      if (errorDesc.includes('QBittorrent proxy is disabled')) {
         errorTitle = 'qBittorrent 代理已禁用';
         errorDesc = '请在设置中启用 qBittorrent 代理，然后重试';
       }
@@ -275,7 +254,7 @@ const SmartSubscriptionModal = ({
                 placeholder="粘贴 RSS 地址..." 
                 suffix={
                   <Button type="text" size="small" icon={<Icon icon={Wand2} className="text-purple-500" />} 
-                    loading={isSmartParsing} onClick={handleSmartFillStart}>
+                    onClick={handleSmartFillStart}>
                     AI 识别
                   </Button>
                 }

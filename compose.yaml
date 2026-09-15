@@ -29,10 +29,35 @@ services:
       DATABASE_URL: mysql+pymysql://aninexus:${MYSQL_PASSWORD:-aninexus-local-password}@mysql:3306/aninexus?charset=utf8mb4
       DEFAULT_USER_ID: 1
       AUTO_CREATE_TABLES: "true"
+      CATALOG_SOURCE_MODE: ${CATALOG_SOURCE_MODE:-mixed}
+      BANGUMI_ACCESS_TOKEN: ${BANGUMI_ACCESS_TOKEN:-}
+      BANGUMI_USER_AGENT: ${BANGUMI_USER_AGENT:-AniNexus/0.1.0 (personal deployment)}
     ports:
       - "${BACKEND_PORT:-8000}:8000"
     depends_on:
       mysql:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/api/v1/health')"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
+  frontend:
+    build:
+      context: ./frontend
+    environment:
+      API_PROXY_URL: http://backend:8000
+      NEXT_TELEMETRY_DISABLED: "1"
+      WATCHPACK_POLLING: "true"
+    ports:
+      - "${FRONTEND_PORT:-3000}:3000"
+    volumes:
+      - ./frontend:/app
+      - aninexus_frontend_modules:/app/node_modules
+      - aninexus_frontend_next:/app/.next
+    depends_on:
+      backend:
         condition: service_healthy
 
   catalog-import:
@@ -51,3 +76,5 @@ services:
 
 volumes:
   aninexus_mysql:
+  aninexus_frontend_modules:
+  aninexus_frontend_next:

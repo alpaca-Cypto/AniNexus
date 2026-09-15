@@ -13,6 +13,7 @@ from sqlalchemy.engine import Connection, Engine
 
 from aninexus_backend.config import Settings
 from aninexus_backend.db import Base, build_engine, ensure_mysql_database
+from aninexus_backend.importers.external_ids import register_subject_external_ids
 from aninexus_backend.models import Subject
 
 LOGGER = logging.getLogger("aninexus.import.search_manga")
@@ -107,6 +108,7 @@ def upsert_subjects(connection: Connection, rows: list[dict[str, Any]]) -> None:
     }
     update_columns["updated_at"] = func.now()
     connection.execute(statement.on_duplicate_key_update(**update_columns))
+    register_subject_external_ids(connection, rows)
 
 
 def _reflect_legacy_table(engine: Engine, kind: CatalogKind) -> Table:

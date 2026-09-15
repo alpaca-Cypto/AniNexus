@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { motion, useMotionValue, useReducedMotion, useSpring } from "motion/react";
 import { useRef } from "react";
-import type { CSSProperties, PointerEvent, ReactNode } from "react";
+import type { CSSProperties, MouseEventHandler, PointerEvent, ReactNode } from "react";
 
 const springValues = {
   damping: 30,
@@ -16,6 +16,7 @@ interface TiltedCardLinkProps {
   href: string;
   className?: string;
   style?: CSSProperties;
+  onClick?: MouseEventHandler<HTMLAnchorElement>;
   scaleOnHover?: number;
   rotateAmplitude?: number;
 }
@@ -25,6 +26,7 @@ export default function TiltedCardLink({
   href,
   className = "",
   style,
+  onClick,
   scaleOnHover = 1.025,
   rotateAmplitude = 7,
 }: TiltedCardLinkProps) {
@@ -60,6 +62,7 @@ export default function TiltedCardLink({
       className={className}
       href={href}
       style={style}
+      onClick={onClick}
       onPointerMove={handlePointerMove}
       onPointerEnter={handlePointerEnter}
       onPointerLeave={handlePointerLeave}

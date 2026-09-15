@@ -46,18 +46,10 @@ const StandardLanes: React.FC<StandardLanesProps> = ({
   onDelete
 }) => {
   const [isSubjectModalOpen, setIsSubjectModalOpen] = useState(false);
-  const [selectedSubject, setSelectedSubject] = useState<any>(null);
+  const [selectedSubject, setSelectedSubject] = useState<ScheduleItem | null>(null);
 
-  const handleOpenDetail = (item: any) => {
-    // 确保 item 数据格式正确
-    const formattedItem = {
-      ...item,
-      // 确保 subject 字段存在
-      subject: item.subject || item,
-      // 确保 collection 字段存在
-      collection: item.collection || {}
-    };
-    setSelectedSubject(formattedItem);
+  const handleOpenDetail = (item: ScheduleItem) => {
+    setSelectedSubject(item);
     setIsSubjectModalOpen(true);
   };
   // 布局计算函数
@@ -116,9 +108,6 @@ const StandardLanes: React.FC<StandardLanesProps> = ({
 
     return grid;
   };
-
-  // Today高亮颜色常量
-  const TODAY_HIGHLIGHT_CLASS = "bg-green-50/50 dark:bg-green-900/10";
 
   // 缓存按分类分组的项目
   const itemsByCategory = useMemo(() => {
@@ -286,7 +275,7 @@ const StandardLanes: React.FC<StandardLanesProps> = ({
           setIsSubjectModalOpen(false);
           setSelectedSubject(null);
         }}
-        initialValues={selectedSubject}
+        initialValues={selectedSubject ?? undefined}
       />
     </>
   );

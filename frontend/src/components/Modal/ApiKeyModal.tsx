@@ -1,8 +1,7 @@
 import React, { useState } from 'react';
 import { Modal, Input, Switch, Button, Badge, Space, Alert } from 'antd';
-import { Lock, Check, AlertCircle, RefreshCw, Trash2, ChevronRight, Server, Cloud, Globe } from 'lucide-react';
+import { Lock, Check, RefreshCw, Trash2, Server, Cloud, Globe } from 'lucide-react';
 import { useApiStore, ProviderConfig } from '@/store/useApiStore';
-import type { CheckboxChangeEvent } from 'antd';
 import { useAppTheme } from '@/components/providers/LobeProvider';
 
 interface ApiKeyModalProps {
@@ -118,7 +117,7 @@ const ApiKeyModal: React.FC<ApiKeyModalProps> = ({ open, onClose }) => {
   };
 
   // 处理配置更新
-  const handleConfigUpdate = (field: keyof ProviderConfig, value: any) => {
+  const handleConfigUpdate = <K extends keyof ProviderConfig>(field: K, value: ProviderConfig[K]) => {
     setProviderConfig(selectedProvider, field, value);
     setCheckResult(null);
   };
@@ -135,7 +134,7 @@ const ApiKeyModal: React.FC<ApiKeyModalProps> = ({ open, onClose }) => {
       // 构建请求头
       const headers = {
         'X-Api-Key': config.apiKey || '',
-        'X-Provider-Endpoint': config.endpoint || ''
+        'X-Provider-Endpoint': config.proxyUrl || config.endpoint || initialConfig[provider]?.endpoint || ''
       };
 
       // 发送请求到后端的 /api/v1/models/check 端点
@@ -152,7 +151,7 @@ const ApiKeyModal: React.FC<ApiKeyModalProps> = ({ open, onClose }) => {
         const errorData = await response.json();
         setCheckResult({ success: false, message: errorData.detail || '连接失败，请检查配置' });
       }
-    } catch (error) {
+    } catch {
       setCheckResult({ success: false, message: '连接失败，请检查网络或配置' });
     } finally {
       setChecking(false);

@@ -1,9 +1,9 @@
 'use client';
 
-import React, { createContext, useContext, ReactNode, useEffect, useState, useMemo } from 'react';
+import React, { createContext, useContext, ReactNode, useEffect, useState, useMemo, useSyncExternalStore } from 'react';
 import { ThemeProvider } from '@lobehub/ui';
 import { ConfigProvider, App, theme as antTheme } from 'antd';
-import type { NeutralColors } from '@lobehub/ui';
+import type { NeutralColors, PrimaryColors } from '@lobehub/ui';
 
 // 类型定义
 type ThemeAppearance = 'auto' | 'light' | 'dark';
@@ -19,6 +19,7 @@ interface AppThemeContextType {
 }
 
 const AppThemeContext = createContext<AppThemeContextType | undefined>(undefined);
+const subscribeToHydration = () => () => undefined;
 
 export const useAppTheme = () => {
   const context = useContext(AppThemeContext);
@@ -52,30 +53,28 @@ const resolvePrimaryColor = (color: string): string => {
   return COLOR_KEY_TO_HEX[color as keyof typeof COLOR_KEY_TO_HEX] || color;
 };
 
+const resolveLobePrimaryColor = (color: string): PrimaryColors =>
+  color in COLOR_KEY_TO_HEX ? color as keyof typeof COLOR_KEY_TO_HEX : 'magenta';
+
 export const LobeProvider = ({ children }: { children: ReactNode }) => {
   // 1. 核心状态：用户偏好 (默认为 auto)
-  const [appearance, setAppearance] = useState<ThemeAppearance>('auto');
+  const [appearance, setAppearance] = useState<ThemeAppearance>(() => {
+    if (typeof window === 'undefined') return 'auto';
+    const saved = localStorage.getItem('APP_THEME_APPEARANCE');
+    return saved === 'light' || saved === 'dark' || saved === 'auto' ? saved : 'auto';
+  });
   // 2. 衍生状态：系统当前是否为暗色
-  const [systemIsDark, setSystemIsDark] = useState(false);
+  const [systemIsDark, setSystemIsDark] = useState(getSystemIsDarkMode);
   
-  const [primaryColor, setPrimaryColor] = useState<string>('#D13F70');
+  const [primaryColor, setPrimaryColor] = useState<string>(() => {
+    if (typeof window === 'undefined') return '#D13F70';
+    return localStorage.getItem('APP_PRIMARY_COLOR') || '#D13F70';
+  });
   const [neutralColor, setNeutralColor] = useState<NeutralColors>('slate');
-  const [isMounted, setIsMounted] = useState(false);
+  const isMounted = useSyncExternalStore(subscribeToHydration, () => true, () => false);
 
   // --- 初始化与监听 ---
   useEffect(() => {
-    setIsMounted(true);
-    
-    // 初始化系统状态
-    setSystemIsDark(getSystemIsDarkMode());
-
-    // 读取本地存储
-    const savedAppearance = localStorage.getItem('APP_THEME_APPEARANCE') as ThemeAppearance;
-    if (savedAppearance) setAppearance(savedAppearance);
-    
-    const savedColor = localStorage.getItem('APP_PRIMARY_COLOR');
-    if (savedColor) setPrimaryColor(savedColor);
-
     // 监听系统主题变化
     const mediaQuery = window.matchMedia('(prefers-color-scheme: dark)');
     const handleSystemChange = (e: MediaQueryListEvent) => {
@@ -85,7 +84,7 @@ export const LobeProvider = ({ children }: { children: ReactNode }) => {
     // 现代浏览器监听方式
     try {
       mediaQuery.addEventListener('change', handleSystemChange);
-    } catch (e) {
+    } catch {
       // 兼容旧浏览器
       mediaQuery.addListener(handleSystemChange);
     }
@@ -93,7 +92,7 @@ export const LobeProvider = ({ children }: { children: ReactNode }) => {
     return () => {
       try {
         mediaQuery.removeEventListener('change', handleSystemChange);
-      } catch (e) {
+      } catch {
         mediaQuery.removeListener(handleSystemChange);
       }
     };
@@ -119,8 +118,8 @@ export const LobeProvider = ({ children }: { children: ReactNode }) => {
   // --- 样式逻辑 (使用 resolvePrimaryColor 处理 primaryColor) ---
   const customTheme = useMemo(() => ({
       neutralColor,
-      primaryColor: resolvePrimaryColor(primaryColor), 
-    } as any), [primaryColor, neutralColor]);
+      primaryColor: resolveLobePrimaryColor(primaryColor),
+    }), [primaryColor, neutralColor]);
 
   if (!isMounted) return null;
 

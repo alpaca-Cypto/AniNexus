@@ -19,10 +19,19 @@ export const request = async <T>(endpoint: string, options: RequestInit = {}): P
 
   // 3. 统一处理 HTTP 错误
   if (!response.ok) {
-    const errorData = await response.json().catch(() => ({}));
-    throw new Error(errorData.detail || `请求失败: ${response.status}`);
+    const errorData = await response.json().catch(() => ({})) as {
+      detail?: string | Array<{ msg?: string }>;
+    };
+    const detail = Array.isArray(errorData.detail)
+      ? errorData.detail
+          .map((item) => item.msg?.replace(/^Value error,\s*/i, ''))
+          .filter(Boolean)
+          .join('；')
+      : errorData.detail;
+    throw new Error(detail || `请求失败: ${response.status}`);
   }
 
   // 4. 返回数据
+  if (response.status === 204) return undefined as T;
   return response.json();
 };

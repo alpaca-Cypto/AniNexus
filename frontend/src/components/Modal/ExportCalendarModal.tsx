@@ -1,6 +1,6 @@
 import React from 'react';
 import { Modal, Button, Divider, Typography } from 'antd';
-import { Download, Volume2 } from 'lucide-react';
+import { Download } from 'lucide-react';
 import { Highlighter } from '@lobehub/ui';
 import { downloadCSV } from '../../services/CalendarService';
 

@@ -1,13 +1,21 @@
 "use client";
 
+import Link from "next/link";
 import Image from "next/image";
 import { useParams, useRouter } from "next/navigation";
-import { useEffect, useMemo, useState } from "react";
-import { ArrowLeft, BellOff, BellRing, BookOpen, CalendarDays, ExternalLink, Film, Globe2, PlayCircle, Star } from "lucide-react";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { ArrowLeft, BellOff, BellRing, BookOpen, ExternalLink, Film, Globe2, PlayCircle, Sparkles, Star } from "lucide-react";
+import {
+  consumeDetailReturnState,
+  prepareDetailReturn,
+  saveDetailNavigationState,
+} from "@/lib/detailNavigationMemory";
+import { hasHomeNavigationState } from "@/lib/homeNavigationMemory";
 import { hasUpdateReminder, toggleUpdateReminder } from "@/lib/updateReminders";
-import type { Subject } from "@/services/search";
+import type { SimilarRecommendation, Subject } from "@/services/search";
 import { searchService } from "@/services/search";
 import "./subject-detail.css";
+import "./similar-recommendations.css";
 
 const videoPlatforms = [
   { name: "哔哩哔哩", buildUrl: (title: string) => `https://search.bilibili.com/all?keyword=${encodeURIComponent(title)}` },
@@ -18,21 +26,45 @@ const videoPlatforms = [
 export default function SubjectDetailPage() {
   const { id } = useParams<{ id: string }>();
   const router = useRouter();
+  const scrollContainerRef = useRef<HTMLDivElement>(null);
+  const restoredScrollTopRef = useRef<number | null>(null);
+  const initializedSubjectIdRef = useRef<number | null>(null);
   const [subject, setSubject] = useState<Subject | null>(null);
+  const [similar, setSimilar] = useState<SimilarRecommendation[]>([]);
   const [loading, setLoading] = useState(true);
+  const [similarLoading, setSimilarLoading] = useState(true);
   const [error, setError] = useState("");
   const [reminderEnabled, setReminderEnabled] = useState(false);
 
   useEffect(() => {
     const subjectId = Number(id);
+    let active = true;
     if (!Number.isInteger(subjectId) || subjectId <= 0) {
-      setError("这个作品地址无效。");
-      setLoading(false);
-      return;
+      queueMicrotask(() => {
+        if (!active) return;
+        setSubject(null);
+        setSimilar([]);
+        setError("这个作品地址无效。");
+        setLoading(false);
+        setSimilarLoading(false);
+      });
+      return () => { active = false; };
     }
 
-    let active = true;
-    setLoading(true);
+    if (initializedSubjectIdRef.current !== subjectId) {
+      initializedSubjectIdRef.current = subjectId;
+      const returnState = consumeDetailReturnState(subjectId);
+      restoredScrollTopRef.current = returnState?.scrollTop ?? null;
+      if (!returnState) scrollContainerRef.current?.scrollTo({ top: 0 });
+    }
+
+    queueMicrotask(() => {
+      if (!active) return;
+      setLoading(true);
+      setSimilarLoading(true);
+      setSimilar([]);
+      setError("");
+    });
     void searchService.getSubject(subjectId)
       .then(({ subject: nextSubject }) => {
         if (!active) return;
@@ -45,7 +77,49 @@ export default function SubjectDetailPage() {
       .finally(() => {
         if (active) setLoading(false);
       });
+
+    void searchService.getSimilarSubjects(subjectId)
+      .then(({ items }) => {
+        if (active) setSimilar(items);
+      })
+      .catch(() => {
+        if (active) setSimilar([]);
+      })
+      .finally(() => {
+        if (active) setSimilarLoading(false);
+      });
     return () => { active = false; };
+  }, [id]);
+
+  useEffect(() => {
+    if (
+      loading
+      || similarLoading
+      || !subject
+      || subject.id !== Number(id)
+      || restoredScrollTopRef.current === null
+    ) return;
+    const scrollTop = restoredScrollTopRef.current;
+    restoredScrollTopRef.current = null;
+    let secondFrame = 0;
+    const firstFrame = requestAnimationFrame(() => {
+      scrollContainerRef.current?.scrollTo({ top: scrollTop });
+      secondFrame = requestAnimationFrame(() => {
+        scrollContainerRef.current?.scrollTo({ top: scrollTop });
+      });
+    });
+    return () => {
+      cancelAnimationFrame(firstFrame);
+      cancelAnimationFrame(secondFrame);
+    };
+  }, [id, loading, similarLoading, subject]);
+
+  useEffect(() => {
+    const subjectId = Number(id);
+    if (!Number.isInteger(subjectId) || subjectId <= 0) return;
+    const handleHistoryBack = () => { prepareDetailReturn(subjectId); };
+    window.addEventListener("popstate", handleHistoryBack);
+    return () => window.removeEventListener("popstate", handleHistoryBack);
   }, [id]);
 
   const sourceWebsite = useMemo(() => {
@@ -65,8 +139,20 @@ export default function SubjectDetailPage() {
   }, [subject]);
 
   const handleBack = () => {
-    if (document.referrer.startsWith(window.location.origin)) router.back();
+    const subjectId = Number(id);
+    const hasDetailReturn = prepareDetailReturn(subjectId);
+    if ((hasDetailReturn || hasHomeNavigationState(subjectId)) && window.history.length > 1) router.back();
     else router.push("/");
+  };
+
+  const rememberDetailPosition = (targetSubjectId: number) => {
+    const sourceSubjectId = Number(id);
+    if (!Number.isInteger(sourceSubjectId) || sourceSubjectId <= 0) return;
+    saveDetailNavigationState({
+      sourceSubjectId,
+      targetSubjectId,
+      scrollTop: scrollContainerRef.current?.scrollTop ?? 0,
+    });
   };
 
   const handleReminder = () => {
@@ -77,7 +163,7 @@ export default function SubjectDetailPage() {
 
   if (loading) {
     return (
-      <div className="subject-detail">
+      <div className="subject-detail" ref={scrollContainerRef}>
         <div className="subject-detail__loading" aria-label="正在加载作品详情">
           <i /><div><span /><span /><span /></div>
         </div>
@@ -87,7 +173,7 @@ export default function SubjectDetailPage() {
 
   if (!subject || error) {
     return (
-      <div className="subject-detail subject-detail--centered">
+      <div className="subject-detail subject-detail--centered" ref={scrollContainerRef}>
         <div className="subject-detail__error">
           <h1>作品详情未找到</h1>
           <p>{error}</p>
@@ -104,7 +190,7 @@ export default function SubjectDetailPage() {
   const tags = subject.tags?.map((tag) => tag.name).filter(Boolean) || [];
 
   return (
-    <div className="subject-detail">
+    <div className="subject-detail" ref={scrollContainerRef}>
       <div className="subject-detail__shell">
         <button className="subject-detail__back" type="button" onClick={handleBack} aria-label="返回上一页">
           <ArrowLeft size={19} />
@@ -183,6 +269,52 @@ export default function SubjectDetailPage() {
               </section>
             </aside>
           </div>
+
+          <section className="subject-detail__similar" aria-labelledby="similar-heading" aria-busy={similarLoading}>
+            <div className="subject-detail__similar-heading">
+              <div>
+                <h2 id="similar-heading"><Sparkles size={19} />相似推荐</h2>
+                <p>综合题材、故事内容与作者或制作团队的重合度排序</p>
+              </div>
+            </div>
+
+            {similarLoading ? (
+              <div className="subject-detail__similar-grid" aria-label="正在加载相似推荐">
+                {Array.from({ length: 5 }, (_, index) => <div className="subject-detail__similar-skeleton" key={index}><i /><span /><span /></div>)}
+              </div>
+            ) : similar.length > 0 ? (
+              <div className="subject-detail__similar-grid">
+                {similar.map((recommendation) => {
+                  const item = recommendation.subject;
+                  const itemTitle = item.name_cn || item.name;
+                  const itemCover = item.images?.large || item.images?.common || item.image;
+                  const itemScore = Number(item.rating?.score || item.score || 0);
+                  return (
+                    <Link
+                      className="subject-detail__similar-card"
+                      href={`/subjects/${item.id}`}
+                      key={item.id}
+                      onClick={() => rememberDetailPosition(item.id)}
+                    >
+                      <div className="subject-detail__similar-cover">
+                        {itemCover ? <Image src={itemCover} alt={`${itemTitle} 封面`} fill sizes="(max-width: 600px) 44vw, 190px" referrerPolicy="no-referrer" /> : <span>AN</span>}
+                      </div>
+                      <div className="subject-detail__similar-copy">
+                        <h3>{itemTitle}</h3>
+                        <div className="subject-detail__similar-meta">
+                          <span>{itemScore > 0 ? <><Star size={13} fill="currentColor" />{itemScore.toFixed(1)}</> : "暂无评分"}</span>
+                          <span>{item.date?.slice(0, 4) || "年份未知"}</span>
+                        </div>
+                        {recommendation.reasons[0] && <p>{recommendation.reasons[0]}</p>}
+                      </div>
+                    </Link>
+                  );
+                })}
+              </div>
+            ) : (
+              <p className="subject-detail__similar-empty">这部作品暂时没有足够的标签或作者数据用于推荐。</p>
+            )}
+          </section>
         </article>
       </div>
     </div>

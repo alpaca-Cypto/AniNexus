@@ -1,19 +1,20 @@
 import { ActionIcon } from '@lobehub/ui';
 import { Popover, Input, Button, Tag } from 'antd';
 import { Search, Star, CheckCircle2 } from 'lucide-react';
-import React, { useMemo, useState } from 'react';
+import React, { useState } from 'react';
 import Image from 'next/image';
-import { DEMO_SEARCH_RESULTS } from '@/data/demoContent';
+import { searchService, type SearchResult } from '@/services/search';
 
 export interface SearchResultItem {
   id: string;
+  subjectId: number;
   title: string;
   cover: string;
   score: number;
   tags: string[];
   hasCollection: boolean;
   source: string;
-  sourceId: number;
+  sourceId: string | number;
   fullItem?: unknown;
 }
 
@@ -21,8 +22,9 @@ interface SearchTriggerProps {
   onSelect?: (item: SearchResultItem) => void;
 }
 
-const allItems: SearchResultItem[] = DEMO_SEARCH_RESULTS.map((item) => ({
-  id: `${item.subject.source}-${item.subject.source_id}`,
+const toSearchResultItem = (item: SearchResult): SearchResultItem => ({
+  id: String(item.subject.id),
+  subjectId: item.subject.id,
   title: item.subject.name_cn || item.subject.name,
   cover: item.subject.image || item.subject.images?.common || '',
   score: item.subject.rating?.score || item.subject.score || 0,
@@ -31,24 +33,33 @@ const allItems: SearchResultItem[] = DEMO_SEARCH_RESULTS.map((item) => ({
   source: item.subject.source,
   sourceId: item.subject.source_id || item.subject.id,
   fullItem: item,
-}));
+});
 
 export default function SearchTrigger({ onSelect }: SearchTriggerProps) {
   const [open, setOpen] = useState(false);
   const [keyword, setKeyword] = useState('');
-  const [submittedKeyword, setSubmittedKeyword] = useState('');
+  const [results, setResults] = useState<SearchResultItem[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [searched, setSearched] = useState(false);
 
-  const results = useMemo(() => {
-    const value = submittedKeyword.trim().toLocaleLowerCase();
-    if (!value) return allItems;
-    return allItems.filter((item) => [item.title, ...item.tags].some((field) => field.toLocaleLowerCase().includes(value)));
-  }, [submittedKeyword]);
+  const handleSearch = async () => {
+    const query = keyword.trim();
+    if (!query) return;
+    setLoading(true);
+    try {
+      const items = await searchService.searchSubjects({ keyword: query, limit: 10 });
+      setResults(items.map(toSearchResultItem));
+      setSearched(true);
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const content = (
     <div style={{ width: 320, padding: 4 }}>
       <div style={{ display: 'flex', gap: 8, marginBottom: 8 }}>
-        <Input placeholder="搜索演示作品" value={keyword} onChange={(event) => setKeyword(event.target.value)} onPressEnter={() => setSubmittedKeyword(keyword)} />
-        <Button type="primary" onClick={() => setSubmittedKeyword(keyword)}>搜索</Button>
+        <Input placeholder="搜索作品" value={keyword} onChange={(event) => setKeyword(event.target.value)} onPressEnter={handleSearch} />
+        <Button type="primary" loading={loading} onClick={handleSearch}>搜索</Button>
       </div>
       <div style={{ maxHeight: 300, overflowY: 'auto', borderRadius: 10, border: '1px solid var(--lobe-color-border)' }}>
         {results.length ? results.map((item) => (
@@ -56,13 +67,13 @@ export default function SearchTrigger({ onSelect }: SearchTriggerProps) {
             type="button"
             key={item.id}
             className="chat-demo-search-item"
-            onClick={() => { onSelect?.(item); setOpen(false); setKeyword(''); setSubmittedKeyword(''); }}
+            onClick={() => { onSelect?.(item); setOpen(false); setKeyword(''); setResults([]); setSearched(false); }}
           >
             <Image src={item.cover || '/Icon.png'} alt="" width={38} height={52} />
             <span><strong>{item.title}</strong><small>{item.tags.slice(0, 3).map((tag) => <Tag key={tag}>{tag}</Tag>)}</small></span>
             <i><Star size={12} fill="currentColor" />{item.score.toFixed(1)}{item.hasCollection && <CheckCircle2 size={13} />}</i>
           </button>
-        )) : <p className="chat-demo-search-empty">没有匹配的演示作品</p>}
+        )) : <p className="chat-demo-search-empty">{searched ? '没有匹配的作品' : '输入作品名后搜索'}</p>}
       </div>
       <style>{`
         .chat-demo-search-item{width:100%;padding:9px;display:flex;align-items:center;gap:10px;color:inherit;border:0;border-bottom:1px solid var(--lobe-color-border);background:transparent;text-align:left;cursor:pointer}
@@ -74,7 +85,7 @@ export default function SearchTrigger({ onSelect }: SearchTriggerProps) {
 
   return (
     <Popover content={content} trigger="click" open={open} onOpenChange={setOpen} placement="topLeft" styles={{ container: { padding: 4 } }}>
-      <ActionIcon icon={Search} title="搜索并插入演示作品" size={{ blockSize: 32 }} active={open} />
+      <ActionIcon icon={Search} title="搜索并插入作品" size={{ blockSize: 32 }} active={open} />
     </Popover>
   );
 }

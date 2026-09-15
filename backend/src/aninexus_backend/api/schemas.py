@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from datetime import date as Date
 from datetime import time
 
 from pydantic import BaseModel, ConfigDict, Field
@@ -14,6 +15,38 @@ class CollectionUpsert(BaseModel):
     ep_status: int = Field(default=0, ge=0)
     vol_status: int = Field(default=0, ge=0)
     tags: list[str] = Field(default_factory=list)
+
+
+class CollectionSubjectUpsert(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    source: str = Field(min_length=1, max_length=32)
+    source_id: str = Field(min_length=1, max_length=64)
+    type: int = Field(ge=1)
+    name: str = Field(min_length=1, max_length=500)
+    name_cn: str | None = Field(default=None, max_length=500)
+    summary: str | None = None
+    date: Date | None = None
+    platform: str | None = Field(default=None, max_length=100)
+    eps: int | None = Field(default=None, ge=0)
+    volumes: int | None = Field(default=None, ge=0)
+    image: str | None = Field(default=None, max_length=500)
+    score: float | None = Field(default=None, ge=0, le=10)
+    tags: list[str] = Field(default_factory=list)
+
+
+class CollectionSave(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    subject: CollectionSubjectUpsert
+    collection: CollectionUpsert
+
+
+class BangumiCollectionSync(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    subject_type: int | None = Field(default=2, ge=1)
+    collection_type: int | None = Field(default=None, ge=1, le=5)
 
 
 class ScheduleUpsert(BaseModel):

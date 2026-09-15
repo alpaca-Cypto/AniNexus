@@ -1,6 +1,5 @@
 import React, { useState, useMemo } from 'react';
 import { Modal, Typography, Input, Select, Space } from 'antd';
-import { CheckSquare } from 'lucide-react';
 import { Highlighter } from '@lobehub/ui';
 // 确保路径正确指向你的 Service 和 Type 文件
 import { generateAllTickTickCommands } from '../../services/CalendarService';

@@ -9,7 +9,13 @@ export const metadata: Metadata = {
   title: "AniNexus — 个人动漫内容中枢",
   description: "发现、收藏并规划你的动画与漫画世界。",
   icons: {
-    icon: "/Icon.png",
+    icon: [
+      { url: "/favicon-32-1cf0fe78.png", sizes: "32x32", type: "image/png" },
+      { url: "/favicon-64-1cf0fe78.png", sizes: "64x64", type: "image/png" },
+      { url: "/Icon-1cf0fe78.png", sizes: "512x512", type: "image/png" },
+    ],
+    shortcut: "/favicon-32-1cf0fe78.png",
+    apple: [{ url: "/apple-touch-icon-1cf0fe78.png", sizes: "180x180", type: "image/png" }],
   },
 };
 export default function RootLayout({ children }: { children: React.ReactNode }) {

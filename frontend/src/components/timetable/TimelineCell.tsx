@@ -10,7 +10,7 @@ interface TimelineCellProps {
   slotIndex: number;
   items: ScheduleItem[];
   isOver: boolean;
-  activeDragItem?: any;
+  activeDragItem?: ScheduleItem | null;
   onDelete?: (id: string) => void;
   slotHeight: number;
 }
@@ -27,18 +27,10 @@ const TimelineCell: React.FC<TimelineCellProps> = ({
   const slotId = `${dayIndex}-${slotIndex}`;
   const topPosition = slotIndex * slotHeight;
   const [isSubjectModalOpen, setIsSubjectModalOpen] = useState(false);
-  const [selectedSubject, setSelectedSubject] = useState<any>(null);
+  const [selectedSubject, setSelectedSubject] = useState<ScheduleItem | null>(null);
 
-  const handleOpenDetail = (item: any) => {
-    // 确保 item 数据格式正确
-    const formattedItem = {
-      ...item,
-      // 确保 subject 字段存在
-      subject: item.subject || item,
-      // 确保 collection 字段存在
-      collection: item.collection || {}
-    };
-    setSelectedSubject(formattedItem);
+  const handleOpenDetail = (item: ScheduleItem) => {
+    setSelectedSubject(item);
     setIsSubjectModalOpen(true);
   };
 
@@ -118,7 +110,7 @@ const TimelineCell: React.FC<TimelineCellProps> = ({
           setIsSubjectModalOpen(false);
           setSelectedSubject(null);
         }}
-        initialValues={selectedSubject}
+        initialValues={selectedSubject ?? undefined}
       />
     </>
   );

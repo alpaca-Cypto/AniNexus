@@ -45,28 +45,23 @@ const STATUS_TO_STATUS_MAP = {
 
 interface CollectionPanelProps {
   searchQuery?: string;
+  collections?: BangumiItem[];
 }
 
-export const CollectionPanel = ({ searchQuery = '' }: CollectionPanelProps) => {
+export const CollectionPanel = ({
+  searchQuery = '',
+  collections = DEMO_SCHEDULES,
+}: CollectionPanelProps) => {
   const [expand, setExpand] = useState(true);
   
   // --- 2. 核心状态管理 ---
   const [activeType, setActiveType] = useState('all'); 
   const [activeStatus, setActiveStatus] = useState('all');
-  const collections: BangumiItem[] = DEMO_SCHEDULES;
   const [isSubjectModalOpen, setIsSubjectModalOpen] = useState(false);
-  const [selectedSubject, setSelectedSubject] = useState<any>(null);
+  const [selectedSubject, setSelectedSubject] = useState<BangumiItem | null>(null);
 
-  const handleOpenDetail = (item: any) => {
-    // 确保 item 数据格式正确
-    const formattedItem = {
-      ...item,
-      // 确保 subject 字段存在
-      subject: item.subject || item,
-      // 确保 collection 字段存在
-      collection: item.collection || {}
-    };
-    setSelectedSubject(formattedItem);
+  const handleOpenDetail = (item: BangumiItem) => {
+    setSelectedSubject(item);
     setIsSubjectModalOpen(true);
   };
 

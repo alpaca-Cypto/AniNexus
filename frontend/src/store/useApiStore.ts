@@ -38,7 +38,11 @@ interface ApiStoreState {
   };
 
   // 动作
-  setProviderConfig: (provider: keyof ApiStoreState['config'], field: keyof ProviderConfig, value: any) => void;
+  setProviderConfig: <K extends keyof ProviderConfig>(
+    provider: keyof ApiStoreState['config'],
+    field: K,
+    value: ProviderConfig[K]
+  ) => void;
   getProviderConfig: (provider: keyof ApiStoreState['config']) => ProviderConfig;
   clearAllKeys: () => void;
 }

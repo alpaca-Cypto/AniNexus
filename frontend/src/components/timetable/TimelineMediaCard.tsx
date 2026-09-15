@@ -1,10 +1,9 @@
-import React from 'react';
-import { Tag, ActionIcon, Tooltip } from '@lobehub/ui';
+import React, { useState } from 'react';
+import Image from 'next/image';
+import { ActionIcon, Tooltip } from '@lobehub/ui';
 import { X, Tv, Film, Book, Clock } from 'lucide-react';
 import { useAppTheme } from '@/components/providers/LobeProvider';
-
-
-//TODO: 将这里的日程按照schedule类型重置 
+import { type BangumiItem, WatchType } from '@/services/bangumiService';
 
 // 样式配置表 (Light/Dark 分离，物理隔离)
 const CATEGORY_STYLES: Record<string, { light: string; dark: string }> = {
@@ -30,37 +29,42 @@ const CATEGORY_STYLES: Record<string, { light: string; dark: string }> = {
   }
 };
 
+const WATCH_TYPE_CATEGORY: Partial<Record<WatchType, keyof typeof CATEGORY_STYLES>> = {
+  [WatchType.MEAL]: 'Meal',
+  [WatchType.LEISURE]: 'Reading',
+  [WatchType.LONG_GRASS]: 'Backlog',
+  [WatchType.NEW]: 'New',
+};
+
 interface TimelineMediaCardProps {
-  data: any;
+  data: BangumiItem;
   category?: string;
   currentHeight?: number;
-  onOpenDetail?: (data: any) => void;
-  onDelete?: (data: any) => void;
+  onOpenDetail?: (data: BangumiItem) => void;
+  onDelete?: (data: BangumiItem) => void;
   noBorder?: boolean;
   transparent?: boolean;
   width?: number;
   isPanel?: boolean;
 }
 
-const TimelineMediaCardInner = ({ data, category, currentHeight, onOpenDetail, onDelete, noBorder, transparent, width, isPanel }: TimelineMediaCardProps) => {
+const TimelineMediaCardInner = ({ data, category, currentHeight, onOpenDetail, onDelete, noBorder, transparent, isPanel }: TimelineMediaCardProps) => {
   const { isDarkMode } = useAppTheme();
-  const cardRef = React.useRef<HTMLDivElement>(null);
-  const [cardWidth, setCardWidth] = React.useState<number | null>(null);
   
   // --- 数据清洗 (逻辑封装在内部) ---
-  const subject = data.subject || data;
-  const title = subject?.name_cn || subject?.name || data.title;
-  const rawCover = subject?.images?.large || data.cover;
+  const subject = data.subject;
+  const title = subject.name_cn || subject.name;
+  const rawCover = subject.images?.large || subject.images?.common || subject.image;
   // 遇到豆瓣图片，使用本地代理接口
   const cover = rawCover?.includes('doubanio.com')
     ? `/api/proxy-image?url=${encodeURIComponent(rawCover)}`
     : rawCover;
-  const score = subject?.rating?.score || data.score;
-  const eps = subject?.eps || 'N/A';
-  const tags = (subject?.tags || []).slice(0, 3).map((t: any) => t.name);
+  const [coverFailed, setCoverFailed] = useState(false);
+  const showCover = Boolean(cover) && !coverFailed;
+  const eps = subject.eps || 'N/A';
   
   // 计算分类样式
-  const categoryKey = category || data.category || 'default';
+  const categoryKey = category || (data.watch_type && WATCH_TYPE_CATEGORY[data.watch_type]) || 'default';
   const styleConfig = CATEGORY_STYLES[categoryKey] || CATEGORY_STYLES.default;
   // 根据模式选择对应的样式字符串
   const activeStyle = isDarkMode ? styleConfig.dark : styleConfig.light;
@@ -87,72 +91,14 @@ const TimelineMediaCardInner = ({ data, category, currentHeight, onOpenDetail, o
     onDelete?.(data);
   };
   
-  // 宽度检测逻辑
-  React.useEffect(() => {
-    const updateCardWidth = () => {
-      if (cardRef.current) {
-        setCardWidth(cardRef.current.offsetWidth);
-      }
-    };
-    
-    // 初始更新
-    updateCardWidth();
-    
-    // 监听窗口大小变化
-    window.addEventListener('resize', updateCardWidth);
-    
-    // 添加 ResizeObserver 监听卡片宽度变化
-    let resizeObserver: ResizeObserver | null = null;
-    if (cardRef.current && typeof ResizeObserver === 'function') {
-      resizeObserver = new ResizeObserver(updateCardWidth);
-      resizeObserver.observe(cardRef.current);
-    }
-    
-    // 清理函数
-    return () => {
-      window.removeEventListener('resize', updateCardWidth);
-      if (resizeObserver) {
-        resizeObserver.disconnect();
-      }
-    };
-  }, []);
-  
-  // ==========================================
-  // 1. 响应式特征计算 (Feature Flags)
-  // ==========================================
-  // 优先使用传入的 width，然后使用测量的宽度，最后使用默认值
-  const w = width || cardWidth || 200; // 默认宽
   const h = currentHeight || 60; // 默认高
-
-  // 尺寸边界判定
-  const isUltraCompactWidth = w <= 50;    // 极限窄：窄到连 48px 的封面都放不下
-  const isCompactWidth = w <= 140;        // 偏窄：1/2 或 1/3 网格宽度
-  const isVeryCompactWidth = w <= 80;     // 非常窄：1/3 或 1/4 宽度
-  const isCompactHeight = h < 50;         // 偏矮：无法容纳大封面
   const isTinyHeight = h < 40;            // 极限矮：需要缩小图标
 
-  // 核心策略修正：只要高度充足，且宽度能塞下封面，一律使用长方形大图！不被 isCompactWidth 干扰。
-  // 1/4 尺寸在高度充足时也使用长方形大图，只要宽度大于 40px
-  const useRectCover = !isCompactHeight && w > 40;
-
-  // 标题显示策略：
-  // 1. 如果使用了大封面，但宽度不足 90px（比如 1/4 宽），文字会被挤没，此时纯享大图（隐藏标题）
-  // 2. 如果没用大封面，宽度不足 70px 时不显示标题（1/3 或 1/4 宽度），宽度大于 70px 时显示并截断标题（1/2 宽度）
-  const showTitle = useRectCover ? w > 90 : w > 70;
-  
-  // 副标题（集数）策略：空间真正充裕时才显示
-  const showSubtitle = useRectCover && !isCompactWidth;
-
-  // 动态尺寸计算
   const iconSize = isTinyHeight ? 12 : 16;
-  const coverClass = useRectCover
-    ? "h-full aspect-[3/4] rounded-sm shadow-sm" // 空间大：3:4 封面，高度撑满，宽度按比例自动计算
-    : `rounded-full ${isTinyHeight ? 'w-6 h-6' : 'w-8 h-8'}`; // 空间小：圆形头像
 
   // 选择类别图标占位
   const getCategoryIcon = () => {
-    const category = data.category || 'New';
-    switch (category) {
+    switch (categoryKey) {
       case 'Meal': return <Tv size={iconSize} />;
       case 'Backlog': return <Film size={iconSize} />;
       case 'Reading': return <Book size={iconSize} />;
@@ -160,7 +106,7 @@ const TimelineMediaCardInner = ({ data, category, currentHeight, onOpenDetail, o
     }
   };
 
-  const time = data.watch_time ?? data.start_time;
+  const time = data.watch_time;
   const tooltipContent = `${title}${time ? ` - ${time}` : ''}`;
 
   // ==========================================
@@ -175,11 +121,15 @@ const TimelineMediaCardInner = ({ data, category, currentHeight, onOpenDetail, o
       return (
         <div className="relative w-full h-full overflow-hidden group/spine">
           {/* A. 封面作为全量背景，撑满不留白 */}
-          {cover ? (
-            <img
+          {showCover && cover ? (
+            <Image
               src={cover}
               alt={title}
+              fill
+              sizes="(max-width: 900px) 14vw, 160px"
+              unoptimized={cover.includes('lain.bgm.tv')}
               referrerPolicy="no-referrer"
+              onError={() => setCoverFailed(true)}
               className="absolute inset-0 w-full h-full object-cover transition-transform duration-500 group-hover/spine:scale-110"
             />
           ) : (
@@ -251,11 +201,15 @@ const TimelineMediaCardInner = ({ data, category, currentHeight, onOpenDetail, o
       <div className="flex flex-row items-center h-full w-full overflow-hidden">
         {/* 封面：固定为 3:4 比例，靠左显示 */}
         <div className="h-full aspect-[3/4] flex-shrink-0 relative">
-          {cover ? (
-            <img
+          {showCover && cover ? (
+            <Image
               src={cover}
               alt={title}
+              fill
+              sizes="96px"
+              unoptimized={cover.includes('lain.bgm.tv')}
               referrerPolicy="no-referrer"
+              onError={() => setCoverFailed(true)}
               className="w-full h-full object-cover"
             />
           ) : (
@@ -283,7 +237,6 @@ const TimelineMediaCardInner = ({ data, category, currentHeight, onOpenDetail, o
   return (
     <Tooltip title={tooltipContent}>
       <div 
-        ref={cardRef}
         className={`group flex flex-row overflow-hidden cursor-pointer
                     transition-all duration-300 group-hover:shadow-md z-10 rounded-lg
                     ${themeClass}`}
@@ -304,17 +257,15 @@ const arePropsEqual = (prev: TimelineMediaCardProps, next: TimelineMediaCardProp
   if (prev.width !== next.width) return false;
   if (prev.isPanel !== next.isPanel) return false;
 
-  const prevSubject = prev.data?.subject || prev.data;
-  const nextSubject = next.data?.subject || next.data;
-  if (prevSubject?.source !== nextSubject?.source) return false;
-  if (prevSubject?.source_id !== nextSubject?.source_id) return false;
-  if (prevSubject?.name_cn !== nextSubject?.name_cn) return false;
-  if (prevSubject?.name !== nextSubject?.name) return false;
-  if (prev.data?.watch_time !== next.data?.watch_time) return false;
-  if (prev.data?.watch_day !== next.data?.watch_day) return false;
-  if (prev.data?.title !== next.data?.title) return false;
-  if (prev.data?.cover !== next.data?.cover) return false;
-  if (prev.data?.category !== next.data?.category) return false;
+  const prevSubject = prev.data.subject;
+  const nextSubject = next.data.subject;
+  if (prevSubject.source !== nextSubject.source) return false;
+  if (prevSubject.source_id !== nextSubject.source_id) return false;
+  if (prevSubject.name_cn !== nextSubject.name_cn) return false;
+  if (prevSubject.name !== nextSubject.name) return false;
+  if (prev.data.watch_time !== next.data.watch_time) return false;
+  if (prev.data.watch_day !== next.data.watch_day) return false;
+  if (prev.data.watch_type !== next.data.watch_type) return false;
 
   const prevImage = prevSubject?.images?.large;
   const nextImage = nextSubject?.images?.large;

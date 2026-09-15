@@ -5,17 +5,18 @@ import SubjectModal from '@/components/Modal/SubjectModal';
 import MediaCard from './MediaCard';
 import { BellOff, BellRing } from 'lucide-react';
 import { getReminderIdentity, readUpdateReminders, toggleUpdateReminder, UPDATE_REMINDERS_EVENT } from '@/lib/updateReminders';
+import type { SearchResult } from '@/services/search';
 
 
 
 interface CollectionContentProps {
-  items: any[];
-  onOpenDetail?: (item: any) => void; // 假设你有个点击打开详情的回调
+  items: SearchResult[];
+  onOpenDetail?: (item: SearchResult) => void;
 }
 
 export default function CollectionContent({ items = [], onOpenDetail }: CollectionContentProps) {
   const [isSubjectModalOpen, setIsSubjectModalOpen] = useState(false);
-  const [selectedSubject, setSelectedSubject] = useState<any>(null);
+  const [selectedSubject, setSelectedSubject] = useState<SearchResult | null>(null);
   const [reminderIds, setReminderIds] = useState<Set<string>>(new Set());
 
   useEffect(() => {
@@ -27,18 +28,10 @@ export default function CollectionContent({ items = [], onOpenDetail }: Collecti
     return () => window.removeEventListener(UPDATE_REMINDERS_EVENT, syncReminders);
   }, []);
 
-  const handleOpenDetail = (item: any) => {
-    // 确保 item 数据格式正确
-    const formattedItem = {
-      ...item,
-      // 确保 subject 字段存在
-      subject: item.subject || item,
-      // 确保 collection 字段存在
-      collection: item.collection || {}
-    };
-    setSelectedSubject(formattedItem);
+  const handleOpenDetail = (item: SearchResult) => {
+    setSelectedSubject(item);
     setIsSubjectModalOpen(true);
-    onOpenDetail?.(formattedItem);
+    onOpenDetail?.(item);
   };
 
   const handleUpdateReminder = (item: unknown) => {
@@ -89,7 +82,7 @@ export default function CollectionContent({ items = [], onOpenDetail }: Collecti
           setIsSubjectModalOpen(false);
           setSelectedSubject(null);
         }}
-        initialValues={selectedSubject}
+        initialValues={selectedSubject ?? undefined}
       />
     </div>
   );

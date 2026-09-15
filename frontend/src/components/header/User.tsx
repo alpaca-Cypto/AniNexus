@@ -1,25 +1,19 @@
 import { Avatar, Button, Flexbox, Popover, Tag, toast } from '@lobehub/ui';
 import { createStaticStyles } from 'antd-style';
 import {
-  BarChart2,
   ChevronDown,
   CreditCard,
   Download,
   LogOut,
   LogIn,
-  MessageSquare,
-  Settings,
-  Sparkles,
   Film,
   Book,
-  Music,
   Gamepad2,
   Users,
   RefreshCw,
 
 } from 'lucide-react';
-import type { FC } from 'react';
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import LoginModal from '../Modal/LoginModal';
 import ImportModal from '../Modal/ImportModal';
 import ApiKeyModal from '../Modal/ApiKeyModal';
@@ -102,12 +96,21 @@ const User: React.FC = () => {
   const [isImportModalOpen, setIsImportModalOpen] = useState(false);
   const [isApiKeyModalOpen, setIsApiKeyModalOpen] = useState(false);
   const [stats, setStats] = useState<DashboardStats | null>(null);
-  const [statsLoading, setStatsLoading] = useState<boolean>(false);
   const [syncLoading, setSyncLoading] = useState<boolean>(false);
   const [popoverOpen, setPopoverOpen] = useState(false);
 
+  // 获取统计数据
+  const fetchStats = useCallback(async () => {
+    try {
+      const data = await dashboardService.getStats();
+      setStats(data);
+    } catch (err) {
+      console.error('Error fetching stats:', err);
+    }
+  }, []);
+
   // 从后端API获取用户信息
-  const fetchUserInfo = async () => {
+  const fetchUserInfo = useCallback(async () => {
     try {
       setLoading(true);
       setError(null);
@@ -137,32 +140,19 @@ const User: React.FC = () => {
       setUserInfo(data);
       
       // 用户信息获取成功后，获取统计数据
-      fetchStats();
+      await fetchStats();
     } catch (err) {
       console.error('Error fetching user info:', err);
       setError(err instanceof Error ? err.message : 'Failed to fetch user info');
     } finally {
       setLoading(false);
     }
-  };
-
-  // 获取统计数据
-  const fetchStats = async () => {
-    try {
-      setStatsLoading(true);
-      const data = await dashboardService.getStats();
-      setStats(data);
-    } catch (err) {
-      console.error('Error fetching stats:', err);
-    } finally {
-      setStatsLoading(false);
-    }
-  };
+  }, [fetchStats]);
 
   // 组件挂载时获取用户信息
   useEffect(() => {
     fetchUserInfo();
-  }, []);
+  }, [fetchUserInfo]);
 
   // 登录成功后的处理函数
   const handleLoginSuccess = () => {
@@ -173,7 +163,7 @@ const User: React.FC = () => {
       if (s.id === activeSessionId) {
         const msgs = await fetchChatHistory(s.id);
         if (msgs.length > 0) {
-          msgs.forEach((m: any) => {
+          msgs.forEach((m) => {
             useChatStore.getState().sendMessage(s.id, {
               id: uuidv4(),
               role: m.role,
@@ -201,7 +191,7 @@ const User: React.FC = () => {
     
     try {
       // 使用 toast.promise 实现持久化的 Toast 提示
-      const response = await toast.promise(
+      await toast.promise(
         collectionService.syncBgm(),
         {
           loading: '正在同步收藏数据...',

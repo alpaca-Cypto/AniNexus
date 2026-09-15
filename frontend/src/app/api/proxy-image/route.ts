@@ -27,7 +27,7 @@ export async function GET(request: Request) {
         'Cache-Control': 'public, max-age=864000', // 让浏览器缓存 10 天
       }
     });
-  } catch (error) {
+  } catch {
     return new NextResponse('Error fetching image', { status: 500 });
   }
 }

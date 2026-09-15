@@ -5,7 +5,7 @@ import { useAppTheme } from '@/components/providers/LobeProvider';
 import SearchBar from './SearchBar';
 import { Button, Popover, Flexbox, toast } from '@lobehub/ui';
 import { Calendar, Database, ChevronDown, Download, Upload, Share, CalendarArrowUp, ListTodo } from 'lucide-react';
-import { useState, useRef } from 'react';
+import { useState } from 'react';
 import { ExportCalendarModal } from '../Modal/ExportCalendarModal';
 import { ExportTickTickModal } from '../Modal/ExportTickTickModal';
 import { generateCalendarEvents, generateCSVString, generateVoiceCommand } from '@/services/CalendarService';
@@ -13,8 +13,8 @@ import { BangumiItem } from '@/services/bangumiService';
 
 interface TimetableHeaderProps {
   onSearch?: (value: string) => void;
-  schedules?: any[];
-  onSyncData?: (data: any[]) => void;
+  schedules?: BangumiItem[];
+  onSyncData?: (data: BangumiItem[]) => void;
   onExportTickTick?: () => void;
 }
 
@@ -34,9 +34,6 @@ export default function TimetableHeader({
     voiceCommand: ''
   });
   
-  // 添加 ref 用于控制 Popover
-  const syncPopoverRef = useRef<any>(null);
-
   const handleSaveSchedules = () => {
     setIsSyncMenuOpen(false);
     if (schedules.length === 0) {
@@ -59,7 +56,11 @@ export default function TimetableHeader({
         toast.info('当前浏览器还没有保存过日程');
         return;
       }
-      onSyncData?.(JSON.parse(saved));
+      const parsed: unknown = JSON.parse(saved);
+      if (!Array.isArray(parsed)) {
+        throw new Error('本地日程格式无效');
+      }
+      onSyncData?.(parsed as BangumiItem[]);
       toast.success('已恢复本地日程');
     } catch {
       toast.error('本地日程数据无法读取');
@@ -128,7 +129,6 @@ export default function TimetableHeader({
           <div style={{ width: '100%', display: 'flex', alignItems: 'center', gap: '16px' }}>
             {/* 数据同步菜单 */}
             <Popover
-              ref={syncPopoverRef}
               arrow={false}
               placement="bottomLeft"
               open={isSyncMenuOpen}

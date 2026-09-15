@@ -40,11 +40,11 @@ export interface SubjectInfo {
   volumes?: number; // 卷数（针对书籍）
   images?: Record<string, string>; // 图片字典（支持多尺寸图片）
   image?: string; // 单个封面图片URL
-  tags?: Array<Record<string, any>>; // 标签列表
+  tags?: Array<{ name: string; count?: number }>; // 标签列表
   meta_tags?: string[]; // 官方元标签
-  infobox?: Array<Record<string, any>>; // 详细元数据（如作者、开发商等）
-  rating?: Record<string, any>; // 评分信息
-  collection?: Record<string, any>; // 收藏状态统计
+  infobox?: Array<{ key: string; value: string | string[] }>; // 详细元数据（如作者、开发商等）
+  rating?: { score?: number; count?: number; total?: number }; // 评分信息
+  collection?: { total?: number; [key: string]: unknown }; // 收藏状态统计
   series?: boolean; // 是否为系列
   locked?: boolean; // 是否锁定
   nsfw?: boolean; // 是否不适合儿童
@@ -78,8 +78,33 @@ interface BangumiCalendarDay {
     summary: string | null;
     air_date: string | null;
     air_weekday: number | null;
+    images?: Record<string, string>;
+    rating?: SubjectInfo['rating'];
+    collection?: SubjectInfo['collection'];
   }>;
 }
+
+const normalizeBangumiImages = (
+  images: Record<string, string> | undefined,
+): Record<string, string> => Object.fromEntries(
+  Object.entries(images || {}).map(([size, url]) => [
+    size,
+    url.startsWith('http://lain.bgm.tv/')
+      ? url.replace('http://lain.bgm.tv/', 'https://lain.bgm.tv/')
+      : url,
+  ]),
+);
+
+export interface BangumiConnectionStatus {
+  configured: boolean;
+  connected: boolean;
+  username: string | null;
+  detail?: string;
+}
+
+export const getBangumiConnectionStatus = async (): Promise<BangumiConnectionStatus> => {
+  return request<BangumiConnectionStatus>('/bangumi/status');
+};
 
 // 获取 Bangumi 日历数据
 export const getBangumiCalendar = async (): Promise<BangumiItem[]> => {
@@ -106,6 +131,10 @@ export const getBangumiCalendar = async (): Promise<BangumiItem[]> => {
             watch_time = timeMatch[1];
           }
         }
+        if (!watch_time) {
+          const totalMinutes = 18 * 60 + index * 20;
+          watch_time = `${Math.floor(totalMinutes / 60).toString().padStart(2, '0')}:${(totalMinutes % 60).toString().padStart(2, '0')}`;
+        }
         
         // 创建前端需要的 BangumiItem
         items.push({
@@ -117,12 +146,10 @@ export const getBangumiCalendar = async (): Promise<BangumiItem[]> => {
             type: 2, // 默认动画类型
             source: 'bangumi',
             source_id: item.id.toString(),
-            images: {
-              common: '',
-              large: '',
-              medium: '',
-              small: ''
-            },
+            date: item.air_date,
+            images: normalizeBangumiImages(item.images),
+            rating: item.rating,
+            collection: item.collection,
             air_weekday: item.air_weekday
           },
           watch_day: day_of_week,
@@ -185,7 +212,7 @@ interface UnifiedSubject {
 }
 
 interface UnifiedCollectionSubjectResponse {
-  collection: null | any;
+  collection: CollectionInfo | null;
   subject: UnifiedSubject;
 }
 
@@ -206,7 +233,7 @@ export const syncBangumiCalendar = async (): Promise<BangumiItem[]> => {
     const items: BangumiItem[] = [];
     
     // 遍历所有番剧
-    response.items.forEach((item, index) => {
+    response.items.forEach((item) => {
       // 确保 subject 存在
       if (!item.subject) return;
       

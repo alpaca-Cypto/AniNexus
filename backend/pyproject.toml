@@ -25,6 +25,9 @@ dev = [
 aninexus-import-search-manga = "aninexus_backend.importers.search_manga:main"
 aninexus-export-public-data = "aninexus_backend.importers.export_public_catalog:main"
 aninexus-import-public-data = "aninexus_backend.importers.public_catalog:main"
+aninexus-convert-bangumi-archive = "aninexus_backend.importers.bangumi_archive:main"
+aninexus-plan-bangumi-matches = "aninexus_backend.importers.match_bangumi_catalog:main"
+aninexus-apply-bangumi-matches = "aninexus_backend.importers.apply_bangumi_matches:main"
 aninexus-api = "aninexus_backend.main:run"
 
 [tool.setuptools.packages.find]
@@ -32,6 +35,7 @@ where = ["src"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
+addopts = "-p no:cacheprovider"
 
 [tool.ruff]
 line-length = 100

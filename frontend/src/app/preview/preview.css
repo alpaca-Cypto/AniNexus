@@ -1,0 +1,294 @@
+.season-preview {
+  --season-bg: oklch(0.975 0.008 160);
+  --season-surface: oklch(0.995 0.003 160);
+  --season-ink: oklch(0.25 0.04 170);
+  --season-muted: oklch(0.45 0.035 170);
+  --season-accent: oklch(0.48 0.11 165);
+  --season-accent-strong: oklch(0.35 0.095 165);
+  --season-soft: oklch(0.92 0.05 155);
+  --season-warm: oklch(0.72 0.13 20);
+  --season-line: color-mix(in oklch, var(--season-ink) 14%, transparent);
+  min-height: 100%;
+  overflow-y: auto;
+  scroll-behavior: smooth;
+  color: var(--season-ink);
+  background: var(--season-bg);
+  font-family: "Microsoft YaHei", "PingFang SC", Arial, sans-serif;
+}
+
+.season-preview.theme-b {
+  --season-bg: oklch(0.965 0.018 205);
+  --season-surface: oklch(0.99 0.01 195);
+  --season-ink: oklch(0.23 0.045 220);
+  --season-muted: oklch(0.43 0.045 215);
+  --season-accent: oklch(0.55 0.13 205);
+  --season-accent-strong: oklch(0.38 0.105 215);
+  --season-soft: oklch(0.91 0.07 195);
+  --season-warm: oklch(0.72 0.15 28);
+}
+
+.season-preview.theme-c {
+  --season-bg: oklch(0.955 0.02 65);
+  --season-surface: oklch(0.985 0.012 70);
+  --season-ink: oklch(0.24 0.055 42);
+  --season-muted: oklch(0.43 0.055 45);
+  --season-accent: oklch(0.57 0.18 38);
+  --season-accent-strong: oklch(0.39 0.14 34);
+  --season-soft: oklch(0.9 0.075 72);
+  --season-warm: oklch(0.72 0.16 78);
+}
+
+.season-preview.theme-d {
+  --season-bg: oklch(0.955 0.018 285);
+  --season-surface: oklch(0.985 0.01 280);
+  --season-ink: oklch(0.24 0.055 278);
+  --season-muted: oklch(0.45 0.045 275);
+  --season-accent: oklch(0.53 0.12 282);
+  --season-accent-strong: oklch(0.36 0.105 278);
+  --season-soft: oklch(0.91 0.05 275);
+  --season-warm: oklch(0.66 0.16 43);
+}
+
+.season-preview *, .season-preview *::before, .season-preview *::after { box-sizing: border-box; }
+.season-preview a { color: inherit; text-decoration: none; }
+.season-preview button { color: inherit; }
+.season-preview :focus-visible { outline: 3px solid var(--season-warm); outline-offset: 4px; }
+
+.season-header {
+  position: sticky;
+  top: 0;
+  z-index: 80;
+  min-height: 76px;
+  padding: 0 clamp(22px, 4vw, 72px);
+  display: flex;
+  align-items: center;
+  gap: clamp(24px, 4vw, 64px);
+  border-bottom: 1px solid var(--season-line);
+  background: color-mix(in oklch, var(--season-bg) 89%, transparent);
+  backdrop-filter: blur(18px) saturate(1.2);
+}
+
+.season-brand { display: flex; align-items: center; gap: 11px; flex: 0 0 auto; }
+.season-brand-mark {
+  width: 38px;
+  height: 38px;
+  display: grid;
+  place-items: center;
+  color: var(--season-bg);
+  border-radius: 50% 44% 48% 38%;
+  background: var(--season-accent-strong);
+  font-size: 11px;
+  font-weight: 900;
+  letter-spacing: -0.04em;
+  transform: rotate(-5deg);
+}
+.season-brand > span:last-child { display: flex; flex-direction: column; line-height: 1.1; }
+.season-brand strong { font-family: "Songti SC", STSong, SimSun, serif; font-size: 19px; letter-spacing: -0.03em; }
+.season-brand small { margin-top: 5px; color: var(--season-muted); font-size: 9px; }
+.season-nav { display: flex; align-items: center; gap: clamp(18px, 2.6vw, 38px); }
+.season-nav a { position: relative; color: var(--season-muted); font-size: 13px; font-weight: 650; }
+.season-nav a:first-child { color: var(--season-ink); }
+.season-nav a:first-child::after { content: ""; position: absolute; left: 0; right: 0; bottom: -11px; height: 2px; background: var(--season-accent); }
+.season-header-actions { margin-left: auto; display: flex; align-items: center; gap: 10px; }
+.season-search, .season-menu {
+  width: 40px;
+  height: 40px;
+  display: grid;
+  place-items: center;
+  border: 1px solid var(--season-line);
+  border-radius: 50%;
+  background: var(--season-surface);
+  cursor: pointer;
+}
+.season-menu { display: none; }
+.season-profile {
+  min-height: 40px;
+  padding: 0 15px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--season-bg) !important;
+  border-radius: 999px;
+  background: var(--season-accent-strong);
+  font-size: 12px;
+  font-weight: 750;
+}
+
+.season-preview main { overflow: hidden; }
+.season-hero {
+  position: relative;
+  min-height: clamp(500px, 69vh, 720px);
+  display: flex;
+  align-items: flex-end;
+  isolation: isolate;
+  background-size: cover;
+  background-position: center;
+}
+.season-hero::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  background: linear-gradient(90deg, color-mix(in oklch, var(--season-accent-strong) 82%, black) 0%, color-mix(in oklch, var(--season-accent-strong) 54%, transparent) 43%, transparent 73%);
+}
+.season-hero-shade { position: absolute; inset: auto 0 0; z-index: -1; height: 46%; background: linear-gradient(transparent, rgba(9, 19, 17, .62)); }
+.theme-b .season-hero { background-position: center 52%; }
+.theme-c .season-hero { background-position: center 50%; }
+.theme-d .season-hero { background-position: center 42%; }
+.season-hero-content { width: min(720px, 86vw); margin: 0 0 clamp(70px, 9vh, 105px) clamp(24px, 8vw, 132px); color: white; }
+.season-edition { margin: 0 0 18px; display: flex; align-items: center; gap: 12px; font-size: 12px; font-weight: 700; letter-spacing: .06em; }
+.season-edition span { width: 35px; height: 35px; display: grid; place-items: center; border: 1px solid rgba(255,255,255,.66); border-radius: 50%; font-family: "Songti SC", STSong, SimSun, serif; font-size: 19px; }
+.season-hero h1 {
+  max-width: 660px;
+  margin: 0;
+  font-family: "Songti SC", STSong, SimSun, serif;
+  font-size: clamp(44px, 6.4vw, 88px);
+  font-weight: 800;
+  line-height: 1.04;
+  letter-spacing: -0.04em;
+  text-wrap: balance;
+  text-shadow: 0 3px 30px rgba(0, 0, 0, .25);
+}
+.season-hero-copy { max-width: 570px; margin: 20px 0 0; color: rgba(255,255,255,.9); font-size: clamp(14px, 1.4vw, 17px); line-height: 1.8; text-wrap: pretty; }
+.season-hero-actions { margin-top: 28px; display: flex; flex-wrap: wrap; gap: 11px; }
+.season-hero-actions a { min-height: 46px; padding: 0 18px; display: flex; align-items: center; gap: 9px; border-radius: 4px 18px 4px 18px; font-size: 13px; font-weight: 750; transition: transform .2s ease, box-shadow .2s ease, background .2s ease; }
+.season-hero-actions a:hover { transform: translateY(-3px); }
+.season-primary { color: var(--season-ink) !important; background: var(--season-surface); box-shadow: 0 12px 34px rgba(0,0,0,.2); }
+.season-secondary { border: 1px solid rgba(255,255,255,.54); background: rgba(8,18,15,.15); backdrop-filter: blur(8px); }
+.season-stamp { position: absolute; right: clamp(28px, 6vw, 96px); bottom: 72px; display: flex; align-items: center; gap: 12px; color: white; writing-mode: vertical-rl; }
+.season-stamp b { width: 66px; height: 66px; display: grid; place-items: center; border: 2px solid rgba(255,255,255,.8); border-radius: 50%; font-family: "Songti SC", STSong, SimSun, serif; font-size: 32px; font-weight: 500; }
+.season-stamp span { padding-top: 12px; border-top: 1px solid rgba(255,255,255,.55); font-family: "Songti SC", STSong, SimSun, serif; font-size: 13px; letter-spacing: .16em; }
+.season-scroll { position: absolute; left: clamp(24px, 8vw, 132px); bottom: 24px; display: flex; align-items: center; gap: 10px; color: rgba(255,255,255,.85) !important; font-size: 10px; letter-spacing: .08em; }
+.season-scroll svg { transform: rotate(90deg); }
+
+.season-intro, .season-feature-grid, .season-lower-grid, .season-tools {
+  width: min(1280px, calc(100% - 48px));
+  margin-inline: auto;
+}
+.season-intro { padding: clamp(58px, 8vw, 108px) 0 30px; display: grid; grid-template-columns: 1fr 1fr auto; align-items: end; gap: 46px; border-bottom: 1px solid var(--season-line); }
+.season-kicker, .season-tools-heading p, .season-section-heading p { margin: 0 0 8px; color: var(--season-accent); font-size: 11px; font-weight: 800; letter-spacing: .1em; }
+.season-intro h2, .season-tools h2 { margin: 0; font-family: "Songti SC", STSong, SimSun, serif; font-size: clamp(28px, 3.2vw, 44px); letter-spacing: -.03em; text-wrap: balance; }
+.season-intro > p { max-width: 48ch; margin: 0; color: var(--season-muted); font-size: 13px; line-height: 1.85; }
+.season-intro > a, .season-section-heading a { display: flex; align-items: center; gap: 8px; color: var(--season-accent-strong); font-size: 12px; font-weight: 800; }
+
+.season-feature-grid { padding: 34px 0 clamp(64px, 8vw, 105px); display: grid; grid-template-columns: minmax(0, 1.55fr) minmax(330px, .75fr); gap: clamp(26px, 4vw, 60px); }
+.season-lead-story { min-width: 0; }
+.season-story-image { position: relative; aspect-ratio: 16 / 8.5; display: flex; align-items: center; justify-content: center; overflow: hidden; border-radius: 3px 32px 3px 32px; background-size: 150%; background-position: center; box-shadow: 0 22px 50px color-mix(in oklch, var(--season-ink) 14%, transparent); }
+.season-story-image::after { content: ""; position: absolute; inset: 0; background: linear-gradient(180deg, transparent 46%, rgba(10,20,18,.48)); }
+.season-story-image > span { position: absolute; z-index: 2; top: 18px; left: 18px; padding: 7px 10px; color: white; border: 1px solid rgba(255,255,255,.6); border-radius: 999px; background: rgba(10,20,18,.25); backdrop-filter: blur(8px); font-size: 10px; font-weight: 750; }
+.season-story-image button { position: relative; z-index: 2; width: 68px; height: 68px; display: grid; place-items: center; color: white; border: 1px solid rgba(255,255,255,.66); border-radius: 50%; background: rgba(10,20,18,.24); backdrop-filter: blur(8px); cursor: pointer; transition: transform .25s ease, background .25s ease; }
+.season-story-image button:hover { transform: scale(1.08); background: rgba(10,20,18,.4); }
+.season-story-copy { position: relative; margin: -34px 24px 0; padding: 24px 28px 0; border-radius: 3px 24px 0 0; background: var(--season-bg); }
+.season-story-copy > p { margin: 0 0 9px; color: var(--season-accent); font-size: 10px; font-weight: 800; }
+.season-story-copy h3 { margin: 0; font-family: "Songti SC", STSong, SimSun, serif; font-size: clamp(22px, 2.6vw, 34px); line-height: 1.25; letter-spacing: -.03em; text-wrap: balance; }
+.season-story-copy > span { display: block; margin-top: 12px; color: var(--season-muted); font-size: 12px; line-height: 1.75; }
+.season-story-copy > a { margin-top: 18px; display: inline-flex; align-items: center; gap: 5px; color: var(--season-accent-strong); font-size: 12px; font-weight: 800; }
+.season-ranking { padding-top: 4px; }
+.season-section-heading { min-height: 45px; display: flex; align-items: flex-end; justify-content: space-between; gap: 18px; border-bottom: 1px solid var(--season-line); }
+.season-section-heading h3 { margin: 0 0 12px; font-family: "Songti SC", STSong, SimSun, serif; font-size: 21px; }
+.season-section-heading > span { margin-bottom: 13px; color: var(--season-muted); font-size: 10px; }
+.season-rank-item { min-height: 104px; display: grid; grid-template-columns: 27px 70px 1fr auto; align-items: center; gap: 13px; border-bottom: 1px solid var(--season-line); transition: padding .2s ease, background .2s ease; }
+.season-rank-item:hover { padding-inline: 8px; background: color-mix(in oklch, var(--season-soft) 45%, transparent); }
+.season-rank-item > b { color: var(--season-accent); font-family: "Songti SC", STSong, SimSun, serif; font-size: 18px; font-weight: 500; }
+.season-rank-thumb { width: 70px; aspect-ratio: 4 / 5; border-radius: 2px 12px 2px 12px; background-size: auto 190%; }
+.season-rank-copy { min-width: 0; display: flex; flex-direction: column; gap: 8px; }
+.season-rank-copy strong { overflow: hidden; font-size: 13px; text-overflow: ellipsis; white-space: nowrap; }
+.season-rank-copy small { color: var(--season-muted); font-size: 10px; }
+.season-score { display: flex; align-items: center; gap: 4px; color: var(--season-warm); font-size: 11px; font-weight: 750; }
+
+.season-lower-grid { padding: clamp(50px, 7vw, 88px) 0; display: grid; grid-template-columns: 1.45fr .75fr; gap: clamp(24px, 4vw, 50px); }
+.theme-a .season-lower-grid { border-radius: 36px 4px 36px 4px; }
+.season-lower-grid::before { content: ""; position: absolute; left: 0; right: 0; z-index: -1; height: 420px; margin-top: -88px; background: var(--season-surface); }
+.season-section-heading > div h3 { margin-bottom: 12px; }
+.season-timeline article { min-height: 76px; display: grid; grid-template-columns: 68px 5px 1fr 38px; align-items: center; gap: 16px; border-bottom: 1px solid var(--season-line); }
+.season-timeline time { display: flex; align-items: center; gap: 5px; color: var(--season-muted); font-size: 11px; }
+.season-timeline i { width: 5px; height: 32px; border-radius: 99px; background: var(--season-accent); }
+.season-timeline i.coral { background: var(--season-warm); }
+.season-timeline i.violet { background: oklch(.58 .15 292); }
+.season-timeline article > div { display: flex; flex-direction: column; gap: 5px; }
+.season-timeline strong { font-size: 13px; }
+.season-timeline article span { color: var(--season-muted); font-size: 10px; }
+.season-timeline button { width: 34px; height: 34px; display: grid; place-items: center; border: 1px solid var(--season-line); border-radius: 50%; background: transparent; cursor: pointer; }
+.season-assistant { position: relative; overflow: hidden; padding: 34px; display: flex; flex-direction: column; justify-content: flex-end; color: white; border-radius: 4px 34px 4px 34px; background: var(--season-accent-strong); }
+.season-assistant::before { content: "问"; position: absolute; right: -18px; top: -50px; color: color-mix(in oklch, white 8%, transparent); font-family: "Songti SC", STSong, SimSun, serif; font-size: 210px; }
+.season-assistant > svg { margin-bottom: auto; color: var(--season-soft); }
+.season-assistant p { margin: 36px 0 7px; color: color-mix(in oklch, white 75%, var(--season-soft)); font-size: 11px; }
+.season-assistant h3 { max-width: 11ch; margin: 0; font-family: "Songti SC", STSong, SimSun, serif; font-size: 27px; line-height: 1.25; }
+.season-assistant > span { max-width: 33ch; margin-top: 14px; color: rgba(255,255,255,.75); font-size: 11px; line-height: 1.75; }
+.season-assistant a { margin-top: 25px; display: inline-flex; align-items: center; gap: 8px; font-size: 12px; font-weight: 800; }
+
+.season-tools { padding: clamp(70px, 9vw, 120px) 0; }
+.season-tools-heading { max-width: 620px; }
+.season-tool-list { margin-top: 40px; display: grid; grid-template-columns: repeat(2, 1fr); border-top: 1px solid var(--season-line); border-left: 1px solid var(--season-line); }
+.season-tool-list > a { min-height: 112px; padding: 24px; display: grid; grid-template-columns: 46px 1fr auto; align-items: center; gap: 16px; border-right: 1px solid var(--season-line); border-bottom: 1px solid var(--season-line); transition: background .2s ease; }
+.season-tool-list > a:hover { background: var(--season-soft); }
+.season-tool-list > a > svg:first-child { width: 46px; height: 46px; padding: 12px; color: var(--season-accent-strong); border-radius: 50%; background: var(--season-soft); }
+.season-tool-list > a > span { display: flex; flex-direction: column; gap: 7px; }
+.season-tool-list strong { font-family: "Songti SC", STSong, SimSun, serif; font-size: 17px; }
+.season-tool-list small { color: var(--season-muted); font-size: 10px; }
+.season-tool-list > a > svg:last-child { color: var(--season-muted); }
+
+.season-footer { min-height: 150px; padding: 36px clamp(24px, 6vw, 96px); display: grid; grid-template-columns: 1fr auto auto; align-items: center; gap: 50px; color: var(--season-bg); background: var(--season-ink); }
+.season-footer .season-brand-mark { color: var(--season-ink); background: var(--season-bg); }
+.season-footer .season-brand small { color: color-mix(in oklch, var(--season-bg) 65%, transparent); }
+.season-footer p, .season-footer > span { color: color-mix(in oklch, var(--season-bg) 68%, transparent); font-size: 11px; }
+
+.preview-switcher { position: fixed; z-index: 100; right: 18px; top: 50%; padding: 7px; display: flex; flex-direction: column; gap: 5px; border: 1px solid var(--season-line); border-radius: 999px; background: color-mix(in oklch, var(--season-surface) 90%, transparent); box-shadow: 0 12px 38px color-mix(in oklch, var(--season-ink) 16%, transparent); backdrop-filter: blur(16px); transform: translateY(-50%); }
+.preview-switcher a { width: 42px; height: 42px; display: grid; grid-template-columns: 1fr; place-items: center; border-radius: 50%; color: var(--season-muted); line-height: 1; transition: color .2s ease, background .2s ease, transform .2s ease; }
+.preview-switcher a:hover { transform: scale(1.08); }
+.preview-switcher a.active { color: var(--season-bg); background: var(--season-accent-strong); }
+.preview-switcher b { font-size: 10px; }
+.preview-switcher span { display: none; }
+
+@media (max-width: 960px) {
+  .season-nav { display: none; }
+  .season-menu { display: grid; }
+  .season-stamp { display: none; }
+  .season-feature-grid, .season-lower-grid { grid-template-columns: 1fr; }
+  .season-ranking { padding-top: 18px; }
+  .season-assistant { min-height: 330px; }
+  .season-lower-grid::before { height: 800px; }
+  .season-intro { grid-template-columns: 1fr auto; }
+  .season-intro > p { grid-column: 1 / -1; grid-row: 2; }
+}
+
+@media (max-width: 680px) {
+  .season-header { min-height: 66px; padding-inline: 16px; }
+  .season-brand small, .season-profile { display: none; }
+  .season-brand-mark { width: 34px; height: 34px; }
+  .season-header-actions { gap: 6px; }
+  .season-search, .season-menu { width: 36px; height: 36px; }
+  .season-hero { min-height: 610px; background-position: 56% center; }
+  .theme-b .season-hero { background-position: 54% center; }
+  .theme-d .season-hero { background-position: 58% center; }
+  .season-hero::before { background: linear-gradient(0deg, rgba(8,18,16,.84), rgba(8,18,16,.05) 76%); }
+  .season-hero-content { width: auto; margin: 0 24px 78px; }
+  .season-hero h1 { max-width: 9ch; font-size: clamp(42px, 13vw, 58px); }
+  .season-hero-copy { font-size: 14px; }
+  .season-hero-actions { flex-direction: column; align-items: stretch; }
+  .season-hero-actions a { justify-content: center; }
+  .season-scroll { left: 24px; }
+  .season-intro, .season-feature-grid, .season-lower-grid, .season-tools { width: min(100% - 32px, 1280px); }
+  .season-intro { grid-template-columns: 1fr; gap: 16px; }
+  .season-intro > p { grid-column: auto; grid-row: auto; }
+  .season-intro > a { margin-top: 5px; }
+  .season-story-image { aspect-ratio: 4 / 3; background-size: auto 100%; }
+  .season-story-copy { margin: -22px 12px 0; padding: 20px 16px 0; }
+  .season-rank-item { grid-template-columns: 22px 58px 1fr; gap: 10px; }
+  .season-rank-thumb { width: 58px; }
+  .season-score { display: none; }
+  .season-lower-grid { padding-top: 56px; }
+  .season-timeline article { grid-template-columns: 58px 4px 1fr 34px; gap: 10px; }
+  .season-assistant { padding: 28px; }
+  .season-tool-list { grid-template-columns: 1fr; }
+  .season-tool-list > a { min-height: 96px; padding: 18px; }
+  .season-footer { padding-bottom: 96px; grid-template-columns: 1fr; gap: 18px; }
+  .season-footer p { margin: 0; }
+  .preview-switcher { right: 50%; top: auto; bottom: 12px; flex-direction: row; transform: translateX(50%); }
+  .preview-switcher a { width: 38px; height: 38px; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .season-preview { scroll-behavior: auto; }
+  .season-preview *, .season-preview *::before, .season-preview *::after { scroll-behavior: auto !important; transition-duration: .01ms !important; animation-duration: .01ms !important; animation-iteration-count: 1 !important; }
+}

@@ -2,12 +2,13 @@
 
 import React, { useState } from 'react';
 import { Button, Popover, message } from 'antd';
-import { Bot, Import, Download, MoreHorizontal, ChevronDown, Database } from 'lucide-react';
+import { Bot, Import, Download, ChevronDown, Database } from 'lucide-react';
 import { Flexbox } from '@lobehub/ui';
 import { Header } from './Header';
 import { useAppTheme } from '@/components/providers/LobeProvider';
 import { useRoleStore } from '@/store/useRoleStore';
 import RoleImportModal from '@/components/Modal/RoleImportModal';
+import type { Role } from '@/store/models';
 
 export default function PersonaHeader() {
   const { isDarkMode, primaryColor } = useAppTheme();
@@ -26,7 +27,7 @@ export default function PersonaHeader() {
   };
 
   // 处理导入完成事件
-  const handleImportComplete = (roles: any) => {
+  const handleImportComplete = (roles: Role[]) => {
     importRoles(roles);
     message.success('角色配置已导入');
   };

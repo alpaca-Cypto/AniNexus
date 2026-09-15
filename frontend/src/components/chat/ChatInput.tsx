@@ -3,10 +3,11 @@
 import { useState } from 'react';
 import { Eraser, Sparkles, X } from 'lucide-react';
 import { ChatInputArea, ChatInputActionBar, TokenTag, ChatSendButton } from '@lobehub/ui/chat';
-import { ActionIcon } from '@lobehub/ui';
+import { ActionIcon, toast } from '@lobehub/ui';
 import { Avatar } from '@lobehub/ui';
 import { useAppTheme } from '@/components/providers/LobeProvider';
 import { RoleSelector } from './RoleSelector';
+import { ModelSelector } from './ModelSelector';
 import SearchTrigger, { SearchResultItem } from './SearchBar';
 
 interface ChatInputProps {
@@ -14,6 +15,9 @@ interface ChatInputProps {
   loading: boolean;
   selectedRole: string;
   onRoleChange: (roleId: string) => void;
+  selectedModel: string;
+  onModelChange: (modelId: string, provider: string) => void;
+  serverModel?: { configured: boolean; model: string; provider: string } | null;
 }
 
 export const ChatInput = ({
@@ -21,6 +25,9 @@ export const ChatInput = ({
   loading,
   selectedRole,
   onRoleChange,
+  selectedModel,
+  onModelChange,
+  serverModel,
 }: ChatInputProps) => {
   const [isExpand, setIsExpand] = useState(false);
   const [text, setText] = useState('');
@@ -146,7 +153,13 @@ export const ChatInput = ({
             <ChatInputActionBar
               leftAddons={
                 <div style={{ marginLeft: '20px', display: 'flex', alignItems: 'center', gap: '8px' }}>
-                  <span className="chat-demo-badge"><Sparkles size={14} />前端演示</span>
+                  <span className="chat-demo-badge"><Sparkles size={14} />收藏工具已启用</span>
+                  <ModelSelector
+                    value={selectedModel}
+                    onChange={onModelChange}
+                    onOpenSettings={() => toast.info('请从右上角头像菜单打开“API管理”配置模型')}
+                    serverModel={serverModel}
+                  />
                   <RoleSelector 
                     value={selectedRole} 
                     onChange={onRoleChange} 

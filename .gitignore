@@ -208,6 +208,9 @@ tempCodeRunnerFile.py
 # Ruff stuff:
 .ruff_cache/
 
+# Pytest fallback cache directories created when the normal cache is locked.
+pytest-cache-files-*/
+
 # PyPI configuration file
 .pypirc
 
@@ -222,8 +225,12 @@ node_modules/
 .idea/
 .impeccable/
 
+# Local API credentials must never be committed.
+apikey/
+
 # Generated public catalog archives belong in Releases or Git LFS after review.
 backend/data/*.jsonl.gz
+backend/data/*-match-plan.jsonl
 
 # Marimo
 marimo/_static/

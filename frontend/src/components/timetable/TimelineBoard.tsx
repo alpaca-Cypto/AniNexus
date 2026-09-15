@@ -1,20 +1,9 @@
-import React, { useState, useRef, useEffect, useMemo, useCallback } from 'react';
-import DraggableItemWrapper from './DraggableItemWrapper';
-import DroppableCell from './DroppableCell';
+import React, { useState, useRef, useEffect, useMemo } from 'react';
 import TimelineCell from './TimelineCell';
-import { SpotlightCard } from '@lobehub/ui/awesome';
 import { BangumiItem as ScheduleItem, WatchType } from '@/services/bangumiService';
 
 // 空数组常量，用于保证没有番剧的空网格每次接收到的都是同一个数组内存引用
 const EMPTY_ARRAY: ScheduleItem[] = [];
-
-interface TimelineBoardProps {
-  scheduleItems: ScheduleItem[];
-  isDarkMode: boolean;
-}
-
-// 星期标题
-const WEEK_DAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 
 // 新番时间网格配置
 const START_HOUR = 18;
@@ -24,9 +13,6 @@ const TOTAL_SLOTS = (END_HOUR - START_HOUR) * SLOTS_PER_HOUR; // 24格
 const DEFAULT_SLOT_HEIGHT = 40; // 默认每格高度40px
 const MIN_SLOT_HEIGHT = 20; // 最小每格高度20px
 const MAX_SLOT_HEIGHT = 120; // 最大每格高度120px
-
-// Today高亮颜色常量
-const TODAY_HIGHLIGHT_CLASS = "bg-green-50/50 dark:bg-green-900/10";
 
 // 计算卡片在网格中的起始行
 const getStartSlot = (time: string): number => {
@@ -66,7 +52,7 @@ interface TimelineBoardProps {
   isDarkMode: boolean;
   currentDay: number;
   overSlotId?: string;
-  activeDragItem?: any;
+  activeDragItem?: ScheduleItem | null;
   onDelete?: (id: string) => void;
   isLoading?: boolean;
   error?: string;
@@ -335,13 +321,20 @@ const TimelineBoard: React.FC<TimelineBoardProps> = ({ scheduleItems, isDarkMode
                       );
                     })}
                     
-                    {/* 当前时间红线 */}
-                    <div 
-                      className="absolute left-0 right-0 w-full h-0.5 bg-red-500 pointer-events-none z-10"
-                      style={{ 
-                        top: `${getCurrentTimePosition() * 100}%` 
-                      }}
-                    ></div>
+                    {/* 当前时间线只属于今天，避免七列拼成一条贯穿整周的红线 */}
+                    {isToday && (
+                      <div
+                        aria-label="当前时间"
+                        className="absolute left-0 right-0 z-10 h-0.5 w-full bg-red-500 pointer-events-none"
+                        style={{
+                          top: `${getCurrentTimePosition() * 100}%`
+                        }}
+                      >
+                        <span className="absolute left-1 top-1 rounded-b bg-red-500 px-1 py-0.5 text-[10px] font-medium leading-none text-white">
+                          现在
+                        </span>
+                      </div>
+                    )}
                   </div>
                 );
               })} 

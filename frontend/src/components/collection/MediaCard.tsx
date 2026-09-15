@@ -1,6 +1,8 @@
 import { Tag, ActionIcon, Tooltip } from '@lobehub/ui';
+import Image from 'next/image';
 import { BellRing, Plus, Tv, Clock, Film, Book, X } from 'lucide-react';
 import { useAppTheme } from '@/components/providers/LobeProvider';
+import type { SearchResult } from '@/services/search';
 import BilibiliIcon from './BilibiliIcon';
 
 // 样式配置表 (Light/Dark 分离，物理隔离)
@@ -27,14 +29,16 @@ const CATEGORY_STYLES: Record<string, { light: string; dark: string }> = {
   }
 };
 
+type MediaCardData = SearchResult & { category?: string; time?: string };
+
 interface MediaCardProps {
-  data: any;
+  data: MediaCardData;
   category?: string; // 新增：用于决定配色
   variant?: 'compact' | 'standard' | 'large' | 'timeline'; // 定义多种尺寸
-  onOpenDetail?: (data: any) => void;
-  onReminder?: (data: any) => void;
+  onOpenDetail?: (data: MediaCardData) => void;
+  onReminder?: (data: MediaCardData) => void;
   reminderEnabled?: boolean;
-  onDelete?: (data: any) => void;
+  onDelete?: (data: MediaCardData) => void;
   currentHeight?: number; // 传入当前容器高度
 }
 
@@ -42,16 +46,16 @@ export const MediaCard = ({ data, category, variant = 'standard', onOpenDetail, 
   const { isDarkMode } = useAppTheme();
   
   // --- 数据清洗 (逻辑封装在内部) ---
-  const subject = data.subject || data;
-  const title = subject?.name_cn || subject?.name || data.title;
-  const rawCover = subject?.images?.large || subject?.images?.common || subject?.image || data.cover;
+  const subject = data.subject;
+  const title = subject.name_cn || subject.name;
+  const rawCover = subject.images?.large || subject.images?.common || subject.image;
   // 遇到豆瓣图片，使用本地代理接口
   const cover = rawCover?.includes('doubanio.com')
     ? `/api/proxy-image?url=${encodeURIComponent(rawCover)}`
     : rawCover;
-  const score = subject?.rating?.score || data.score;
-  const eps = subject?.eps || 'N/A';
-  const tags = (subject?.tags || []).slice(0, variant === 'compact' ? 1 : 3).map((t: any) => t.name);
+  const score = subject.rating?.score || subject.score;
+  const eps = subject.eps || 'N/A';
+  const tags = (subject.tags || []).slice(0, variant === 'compact' ? 1 : 3).map((tag) => tag.name);
   
   // 计算分类样式
   const categoryKey = category || data.category || 'default';
@@ -159,9 +163,11 @@ export const MediaCard = ({ data, category, variant = 'standard', onOpenDetail, 
               <div className="flex items-center gap-2">
                 <div className={`w-8 h-8 flex-shrink-0 relative overflow-hidden rounded-full ${isDarkMode ? 'bg-gray-700' : 'bg-gray-100'}`}>
                   {cover ? (
-                    <img 
-                      src={cover} 
-                      alt={title} 
+                    <Image
+                      src={cover}
+                      alt={title}
+                      fill
+                      sizes="32px"
                       referrerPolicy="no-referrer"
                       className="w-full h-full object-cover"
                     />
@@ -200,9 +206,11 @@ export const MediaCard = ({ data, category, variant = 'standard', onOpenDetail, 
               {/* 左侧封面 - 3:4 比例 */}
               <div className={`w-12 aspect-[3/4] flex-none relative overflow-hidden ${isDarkMode ? 'bg-gray-700' : 'bg-gray-100'}`}>
                 {cover ? (
-                  <img 
-                    src={cover} 
-                    alt={title} 
+                  <Image
+                    src={cover}
+                    alt={title}
+                    fill
+                    sizes="48px"
                     referrerPolicy="no-referrer"
                     className="w-full h-full object-cover transition-transform duration-500 hover:scale-105"
                   />
@@ -249,9 +257,11 @@ export const MediaCard = ({ data, category, variant = 'standard', onOpenDetail, 
               <div className="flex items-center gap-2">
                 <div className={`w-8 h-8 flex-shrink-0 relative overflow-hidden rounded-full ${isDarkMode ? 'bg-gray-700' : 'bg-gray-100'}`}>
                   {cover ? (
-                    <img 
-                      src={cover} 
-                      alt={title} 
+                    <Image
+                      src={cover}
+                      alt={title}
+                      fill
+                      sizes="32px"
                       referrerPolicy="no-referrer"
                       className="w-full h-full object-cover"
                     />
@@ -313,9 +323,11 @@ export const MediaCard = ({ data, category, variant = 'standard', onOpenDetail, 
       {/* 封面区域 */}
       <div className="aspect-[2/3] w-full relative overflow-hidden">
         {cover ? (
-          <img 
-            src={cover} 
-            alt={title} 
+          <Image
+            src={cover}
+            alt={title}
+            fill
+            sizes="(max-width: 760px) 46vw, 180px"
             referrerPolicy="no-referrer"
             className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
           />

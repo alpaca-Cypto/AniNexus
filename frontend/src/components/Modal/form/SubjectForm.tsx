@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
-import { Input, Select, TextArea, Button, Icon, Tag } from '@lobehub/ui';
+import Image from 'next/image';
+import { Input, Select, TextArea, Button, Icon } from '@lobehub/ui';
 import { Rate } from 'antd';
 import { ChevronDown, ChevronUp } from 'lucide-react';
 import { useAppTheme } from '@/components/providers/LobeProvider';
@@ -39,9 +40,12 @@ export const SubjectForm: React.FC<SubjectFormProps> = ({ value, onChange }) => 
         <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
           {value.cover && (
             <div style={{ display: 'flex', alignItems: 'flex-start', gap: 12 }}>
-              <img 
+              <Image
                 src={value.cover} 
                 alt={value.title} 
+                width={80}
+                height={120}
+                unoptimized
                 style={{ width: 80, height: 120, objectFit: 'cover', borderRadius: 4 }}
               />
               <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 8 }}>
@@ -49,7 +53,15 @@ export const SubjectForm: React.FC<SubjectFormProps> = ({ value, onChange }) => 
                   <span style={{ fontSize: 12, color: isDarkMode ? '#9ca3af' : '#666' }}>条目名称</span>
                   <Input 
                     value={value.title} 
-                    onChange={(e) => onChange({...value, title: e.target.value})}
+                    onChange={(e) => {
+                      const title = e.target.value;
+                      const titleField = value.subject.name_cn ? 'name_cn' : 'name';
+                      onChange({
+                        ...value,
+                        title,
+                        subject: { ...value.subject, [titleField]: title },
+                      });
+                    }}
                     disabled={!showSubjectDetails}
                   />
                 </div>
@@ -89,7 +101,15 @@ export const SubjectForm: React.FC<SubjectFormProps> = ({ value, onChange }) => 
                 <span style={{ fontSize: 12, color: isDarkMode ? '#9ca3af' : '#666' }}>条目名称</span>
                 <Input 
                   value={value.title} 
-                  onChange={(e) => onChange({...value, title: e.target.value})}
+                  onChange={(e) => {
+                    const title = e.target.value;
+                    const titleField = value.subject.name_cn ? 'name_cn' : 'name';
+                    onChange({
+                      ...value,
+                      title,
+                      subject: { ...value.subject, [titleField]: title },
+                    });
+                  }}
                   disabled={!showSubjectDetails}
                 />
               </div>
@@ -190,10 +210,8 @@ export const SubjectForm: React.FC<SubjectFormProps> = ({ value, onChange }) => 
                 <div style={{ flex: 1 }}>
                   <span style={{ fontSize: 12, color: isDarkMode ? '#9ca3af' : '#666' }}>源ID</span>
                   <Input 
-                    type="number" 
-                    min="0" 
-                    value={value.subject?.id || ''} 
-                    onChange={(e) => onChange({...value, subject: {...(value.subject || {}), id: parseInt(e.target.value) || 0}})}
+                    value={value.subject?.source_id || value.subject?.id || ''}
+                    onChange={(e) => onChange({...value, subject: {...(value.subject || {}), source_id: e.target.value}})}
                   />
                 </div>
               </div>

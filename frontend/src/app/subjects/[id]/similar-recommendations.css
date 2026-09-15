@@ -1,0 +1,156 @@
+.subject-detail__similar {
+  margin-top: 28px;
+  padding: 26px;
+  border: 1px solid var(--detail-line);
+  border-radius: 9px 28px 9px 28px;
+  background: var(--detail-surface);
+}
+
+.subject-detail__similar-heading {
+  margin-bottom: 18px;
+  display: flex;
+  align-items: end;
+  justify-content: space-between;
+  gap: 20px;
+}
+
+.subject-detail__similar-heading h2 {
+  margin: 0;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 20px;
+}
+
+.subject-detail__similar-heading h2 svg { color: var(--detail-primary); }
+.subject-detail__similar-heading p { margin: 6px 0 0; color: var(--detail-muted); font-size: 13px; }
+
+.subject-detail__similar-grid {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 18px;
+}
+
+.subject-detail__similar-card {
+  min-width: 0;
+  display: block;
+  overflow: hidden;
+  color: var(--detail-text);
+  border: 1px solid var(--detail-line);
+  border-radius: 8px 21px 10px 21px;
+  background: var(--detail-bg);
+  text-decoration: none;
+  transition: border-color .2s ease, box-shadow .24s ease, transform .2s cubic-bezier(.25, 1, .5, 1);
+}
+
+.subject-detail__similar-card:hover {
+  border-color: var(--detail-primary);
+  box-shadow: 0 14px 30px color-mix(in oklch, var(--detail-text) 12%, transparent);
+  transform: translateY(-4px);
+}
+
+.subject-detail__similar-card:active { transform: translateY(-1px) scale(.99); }
+.subject-detail__similar-card:focus-visible { outline: 3px solid var(--detail-primary); outline-offset: 3px; }
+
+.subject-detail__similar-cover {
+  position: relative;
+  aspect-ratio: 3 / 4;
+  overflow: hidden;
+  display: grid;
+  place-items: center;
+  color: var(--detail-primary);
+  background: var(--detail-soft);
+  font: 800 25px "Noto Serif JP", serif;
+}
+
+.subject-detail__similar-cover img { object-fit: cover; transition: transform .4s cubic-bezier(.16, 1, .3, 1); }
+.subject-detail__similar-card:hover .subject-detail__similar-cover img { transform: scale(1.04); }
+.subject-detail__similar-copy { padding: 12px; }
+
+.subject-detail__similar-copy h3 {
+  margin: 0;
+  overflow: hidden;
+  font-size: 14px;
+  line-height: 1.45;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.subject-detail__similar-meta {
+  margin-top: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  color: var(--detail-muted);
+  font-size: 11px;
+}
+
+.subject-detail__similar-meta span:first-child {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  color: oklch(.58 .16 65);
+  font-weight: 750;
+}
+
+.subject-detail__similar-copy p {
+  margin: 8px 0 0;
+  overflow: hidden;
+  color: var(--detail-dark);
+  font-size: 11px;
+  font-weight: 650;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.subject-detail__similar-empty {
+  margin: 0;
+  padding: 34px 16px;
+  text-align: center;
+  color: var(--detail-muted);
+  font-size: 13px;
+  border: 1px dashed var(--detail-line);
+  border-radius: 14px;
+}
+
+.subject-detail__similar-skeleton { display: grid; gap: 10px; }
+.subject-detail__similar-skeleton i {
+  aspect-ratio: 3 / 4;
+  border-radius: 8px 21px 10px 21px;
+  background: var(--detail-line);
+}
+.subject-detail__similar-skeleton span {
+  width: 82%;
+  height: 13px;
+  border-radius: 999px;
+  background: var(--detail-line);
+}
+.subject-detail__similar-skeleton span:last-child { width: 55%; }
+.subject-detail__similar-skeleton i,
+.subject-detail__similar-skeleton span {
+  background-image: linear-gradient(100deg, transparent 30%, color-mix(in oklch, white 64%, transparent) 50%, transparent 70%);
+  background-size: 220% 100%;
+  animation: subject-detail-shimmer 1.4s linear infinite;
+}
+
+@media (max-width: 940px) {
+  .subject-detail__similar-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+}
+
+@media (max-width: 600px) {
+  .subject-detail__similar { padding: 19px; border-radius: 8px 24px; }
+  .subject-detail__similar-grid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+  .subject-detail__similar-heading p { max-width: 32ch; line-height: 1.55; }
+  .subject-detail__similar-copy { padding: 10px; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .subject-detail__similar-card,
+  .subject-detail__similar-cover img,
+  .subject-detail__similar-skeleton i,
+  .subject-detail__similar-skeleton span {
+    animation-duration: .01ms !important;
+    transition-duration: .01ms !important;
+  }
+}

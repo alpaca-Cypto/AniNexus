@@ -5,21 +5,32 @@ import { useAppTheme } from '@/components/providers/LobeProvider';
 import SubjectForm from './form/SubjectForm';
 import { FormData } from './types';
 import { hasUpdateReminder, toggleUpdateReminder, UPDATE_REMINDERS_EVENT } from '@/lib/updateReminders';
+import { COLLECTIONS_UPDATED_EVENT, collectionService } from '@/services/collections';
 import styles from './SubjectModal.module.css';
 
 interface SubjectModalProps {
   isOpen: boolean;
   onClose: () => void;
-  initialValues?: Partial<FormData>;
+  initialValues?: unknown;
 }
+
+type ItemRecord = Record<string, unknown>;
+
+const asRecord = (value: unknown): ItemRecord =>
+  typeof value === 'object' && value !== null ? value as ItemRecord : {};
+
+const asString = (value: unknown): string => value == null ? '' : String(value);
+const asNumber = (value: unknown): number => Number(value || 0);
 
 const SubjectModal = ({ isOpen, onClose, initialValues }: SubjectModalProps) => {
   const { isDarkMode } = useAppTheme();
   const [isReminderEnabled, setIsReminderEnabled] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
   
   // 解析项目数据的函数
-  const parseItemData = (item: any): FormData => {
-    if (!item) {
+  const parseItemData = (value: unknown): FormData => {
+    const item = asRecord(value);
+    if (Object.keys(item).length === 0) {
       // 默认空表单数据
       return {
         title: '',
@@ -55,40 +66,42 @@ const SubjectModal = ({ isOpen, onClose, initialValues }: SubjectModalProps) => 
     }
     
     // 提取 subject 和 collection 数据
-    const subject = item.subject || item;
-    const collection = item.collection || {};
+    const subject = Object.keys(asRecord(item.subject)).length > 0 ? asRecord(item.subject) : item;
+    const collection = asRecord(item.collection);
+    const images = asRecord(subject.images);
+    const rating = asRecord(subject.rating);
     
     // 构建表单数据
     return {
-      title: String(subject.name_cn || subject.name || item.title || ''),
+      title: asString(subject.name_cn || subject.name || item.title),
       subject: {
-        id: Number(subject.id || subject.source_id || 0),
-        source_id: Number(subject.source_id || subject.id || 0),
-        date: String(subject.date || ''),
-        images: subject.images || {
-          small: '',
-          grid: '',
-          large: subject.image || '',
-          medium: '',
-          common: subject.image || ''
+        id: asNumber(subject.id || subject.source_id),
+        source_id: asString(subject.source_id || subject.id),
+        date: asString(subject.date),
+        images: {
+          small: asString(images.small),
+          grid: asString(images.grid),
+          large: asString(images.large || subject.image),
+          medium: asString(images.medium),
+          common: asString(images.common || subject.image),
         },
-        name: String(subject.name || ''),
-        name_cn: String(subject.name_cn || ''),
-        short_summary: String(subject.short_summary || subject.summary || ''),
-        tags: subject.tags || [],
-        score: Number(subject.rating?.score || subject.score || 0),
-        type: Number(subject.type || subject.subject_type || 0),
-        eps: Number(subject.eps || 0),
-        volumes: Number(subject.volumes || 0),
-        source: String(subject.source || '')
+        name: asString(subject.name),
+        name_cn: asString(subject.name_cn),
+        short_summary: asString(subject.short_summary || subject.summary),
+        tags: Array.isArray(subject.tags) ? subject.tags as FormData['subject']['tags'] : [],
+        score: asNumber(rating.score || subject.score),
+        type: asNumber(subject.type || subject.subject_type),
+        eps: asNumber(subject.eps),
+        volumes: asNumber(subject.volumes),
+        source: asString(subject.source),
       },
-      cover: String(subject.images?.large || subject.images?.medium || subject.image || ''),
+      cover: asString(images.large || images.medium || subject.image),
       collectionType: Number(collection.type || item.type || 1), // 默认值为"想看"
-      rate: Number(collection.rate || item.rate || 0),
-      comment: String(collection.comment || item.comment || ''),
-      volStatus: Number(collection.vol_status || item.vol_status || 0),
-      epStatus: Number(collection.ep_status || item.ep_status || 0),
-      tags: String(collection.tags || item.tags || '')
+      rate: asNumber(collection.rate || item.rate),
+      comment: asString(collection.comment || item.comment),
+      volStatus: asNumber(collection.vol_status || item.vol_status),
+      epStatus: asNumber(collection.ep_status || item.ep_status),
+      tags: asString(collection.tags || item.tags),
     };
   };
   
@@ -114,23 +127,65 @@ const SubjectModal = ({ isOpen, onClose, initialValues }: SubjectModalProps) => 
     return () => window.removeEventListener(UPDATE_REMINDERS_EVENT, syncReminderState);
   }, [formData, isOpen]);
 
-  const handleOk = () => {
+  const handleOk = async () => {
+    const source = formData.subject.source.trim();
+    const sourceId = String(formData.subject.source_id || formData.subject.id || '').trim();
+    const name = (formData.subject.name || formData.title).trim();
+    if (!source || !sourceId || !name || !formData.subject.type) {
+      toast.error({
+        title: '无法保存收藏',
+        description: '条目的名称、类型、来源或源 ID 不完整。',
+        icon: XCircle,
+      });
+      return;
+    }
+
+    setIsSaving(true);
     try {
-      localStorage.setItem(`aninexus-demo-subject-${formData.subject.id}`, JSON.stringify(formData));
+      const saved = await collectionService.saveCollection({
+        subject: {
+          source,
+          source_id: sourceId,
+          type: formData.subject.type,
+          name,
+          name_cn: formData.subject.name_cn || formData.title || null,
+          summary: formData.subject.short_summary || null,
+          date: formData.subject.date || null,
+          eps: formData.subject.eps || null,
+          volumes: formData.subject.volumes || null,
+          image: formData.cover || formData.subject.images?.large || null,
+          score: formData.subject.score || null,
+          tags: (formData.subject.tags || []).map((tag) => tag.name),
+        },
+        collection: {
+          type: formData.collectionType || 1,
+          rate: formData.rate || null,
+          comment: formData.comment || null,
+          ep_status: formData.epStatus || 0,
+          vol_status: formData.volStatus || 0,
+          tags: (formData.tags || '')
+            .split(/[,，]/)
+            .map((tag) => tag.trim())
+            .filter(Boolean),
+        },
+      });
+      window.dispatchEvent(new CustomEvent(COLLECTIONS_UPDATED_EVENT, { detail: saved }));
       toast.success({
-        title: '已保存到浏览器',
-        description: '这份条目修改仅用于当前前端演示。',
+        title: '已保存到我的收藏',
+        description: '收藏信息已写入数据库，并更新右侧收藏栏。',
         icon: CheckCircle2,
         duration: 3000,
       });
       onClose();
-    } catch {
+    } catch (error) {
       toast.error({
         title: '保存失败',
-        description: '浏览器无法保存这份演示数据。',
+        description: error instanceof Error ? error.message : '收藏信息暂时无法保存。',
         icon: XCircle,
         duration: 3000,
       });
+    } finally {
+      setIsSaving(false);
     }
   };
 
@@ -229,7 +284,8 @@ const SubjectModal = ({ isOpen, onClose, initialValues }: SubjectModalProps) => 
         title="条目详情"
         onCancel={onClose}
         onOk={handleOk}
-        okText="保存到浏览器"
+        okText="保存收藏"
+        okButtonProps={{ loading: isSaving }}
         cancelText="取消"
         centered
         width={700}

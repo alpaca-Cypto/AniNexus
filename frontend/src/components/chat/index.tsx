@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useRef, useEffect } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { v4 as uuidv4 } from 'uuid';
 // 1. 引入图标并重命名，防止命名冲突
 import { Plus, Trash2, MessageSquare, Copy, Loader2, CheckCircle2, XCircle } from 'lucide-react';
@@ -13,15 +13,26 @@ import ChatInput from './ChatInput';
 import useChatStore, { Message, ToolCall } from '../../stores/useChatStore';
 import { useRoleStore } from '@/store/useRoleStore';
 import presetRoles from '@/store/presetRoles';
+import { chatWithBackend } from '@/lib/fetcher';
+import { profileService, USER_AVATAR_UPDATED_EVENT } from '@/services/profile';
 
 export default function ChatPage() {
   const [loading, setLoading] = useState(false);
+  const [userAvatar, setUserAvatar] = useState<string | null>(null);
   // 角色选择相关状态
   const [selectedRole, setSelectedRole] = useState('preset-1'); // 默认选择第一个预设角色
+  const [selectedModel, setSelectedModel] = useState('gpt-4o');
+  const [selectedProvider, setSelectedProvider] = useState('openai');
+  const [serverModel, setServerModel] = useState<{
+    configured: boolean;
+    model: string;
+    provider: string;
+  } | null>(null);
 
   const { token } = theme.useToken();
   const { isDarkMode } = useAppTheme();
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const didInitializeSessionRef = useRef(false);
 
   // 使用聊天存储
   const {
@@ -37,21 +48,74 @@ export default function ChatPage() {
   } = useChatStore();
 
   // 确保 chatMessages 是一个 Map 对象
-  const chatMessages = rawChatMessages && typeof rawChatMessages.get === 'function' 
-    ? rawChatMessages 
-    : new Map();
+  const chatMessages = useMemo(
+    () => rawChatMessages && typeof rawChatMessages.get === 'function'
+      ? rawChatMessages
+      : new Map<string, Message[]>(),
+    [rawChatMessages],
+  );
 
   // 确保有一个活跃会话
   useEffect(() => {
-    if (!activeSessionId && sessions.length === 0) {
-      createSession();
-    }
+    if (didInitializeSessionRef.current) return;
+    didInitializeSessionRef.current = true;
+    const state = useChatStore.getState();
+    if (!state.activeSessionId && state.sessions.length === 0) createSession();
   }, [activeSessionId, sessions.length, createSession]);
 
+  useEffect(() => {
+    let active = true;
+    void fetch('/api/v1/assistant/config')
+      .then(async (response) => {
+        if (!response.ok) return null;
+        return response.json() as Promise<{
+          configured: boolean;
+          model: string;
+          provider: string;
+        }>;
+      })
+      .then((config) => {
+        if (!active || !config) return;
+        setServerModel(config);
+        if (config.configured) {
+          setSelectedModel(config.model);
+          setSelectedProvider(config.provider);
+        }
+      })
+      .catch(() => {
+        if (active) setServerModel(null);
+      });
+    return () => {
+      active = false;
+    };
+  }, []);
+
+  useEffect(() => {
+    let active = true;
+    const handleAvatarUpdate = (event: Event) => {
+      setUserAvatar((event as CustomEvent<string | null>).detail);
+    };
+    window.addEventListener(USER_AVATAR_UPDATED_EVENT, handleAvatarUpdate);
+    void profileService.getProfile()
+      .then((profile) => {
+        if (active) setUserAvatar(profile.avatar_url);
+      })
+      .catch(() => {
+        if (active) setUserAvatar(null);
+      });
+    return () => {
+      active = false;
+      window.removeEventListener(USER_AVATAR_UPDATED_EVENT, handleAvatarUpdate);
+    };
+  }, []);
+
   // 获取当前会话的消息
-  const currentMessages = activeSessionId && chatMessages && typeof chatMessages.get === 'function' 
-    ? chatMessages.get(activeSessionId) || [] 
-    : [];
+  const currentMessages = useMemo(
+    () => activeSessionId && chatMessages && typeof chatMessages.get === 'function'
+      ? chatMessages.get(activeSessionId) || []
+      : [],
+    [activeSessionId, chatMessages],
+  );
 
   // 从 Store 获取所有自定义角色
   const customRoles = useRoleStore((s) => s.customRoles);
@@ -60,6 +124,11 @@ export default function ChatPage() {
   const handleRoleChange = (roleId: string) => {
     setSelectedRole(roleId);
   };
+
+  const handleModelChange = useCallback((modelId: string, provider: string) => {
+    setSelectedModel(modelId);
+    setSelectedProvider(provider);
+  }, []);
 
   // 获取当前选中角色的详细信息
   const getSelectedRole = () => {
@@ -89,13 +158,56 @@ export default function ChatPage() {
     const aiMessageId = uuidv4();
     sendMessage(activeSessionId, { id: aiMessageId, role: 'assistant' as const, content: '', createdAt: new Date() });
     setLoading(true);
-    await new Promise((resolve) => setTimeout(resolve, 220));
+    let answer = '';
+    let reportedError = '';
+    const contextText = contextItems.length
+      ? `\n\n用户附带的参考作品：${contextItems.map((item) => `《${item.title}》(subject_id: ${item.subjectId})`).join('、')}`
+      : '';
+    const requestMessages = [
+      ...currentMessages.map((message: Message) => ({ role: message.role, content: message.content })),
+      { role: 'user', content: `${text || '看看这些作品'}${contextText}` },
+    ];
+    const selectedRoleConfig = getSelectedRole();
 
-    const roleName = getSelectedRole()?.name || 'AniNexus 助手';
-    const related = contextItems.length ? `你附带了 ${contextItems.map((item) => `《${item.title}》`).join('、')}。` : '';
-    const answer = `${related}这是 ${roleName} 的前端演示回复。当前版本不会发送网络请求，你可以继续测试会话、角色切换、作品引用和消息布局。${text.trim() ? `\n\n关于“${text.trim()}”，接入内容数据后，这里会展示对应的推荐理由、题材对比和观看建议。` : ''}`;
-    updateMessage(activeSessionId, answer, aiMessageId);
-    setLoading(false);
+    try {
+      await chatWithBackend({
+        messages: requestMessages,
+        provider: selectedProvider,
+        model: selectedModel,
+        temperature: selectedRoleConfig?.temperature ?? 0.7,
+        prompt_config: selectedRoleConfig?.promptConfig,
+        thread_id: activeSessionId,
+        onMessageChunk: (chunk) => {
+          answer += chunk;
+          updateMessage(activeSessionId, answer, aiMessageId);
+        },
+        onToolStart: (name, inputs, callId) => {
+          updateMessage(activeSessionId, answer, aiMessageId, {
+            id: callId,
+            name,
+            inputs,
+            status: 'running',
+          });
+        },
+        onToolEnd: (name, output, callId) => {
+          const failed = Boolean(output && typeof output === 'object' && 'error' in output);
+          updateMessage(activeSessionId, answer, aiMessageId, {
+            id: callId,
+            name,
+            output,
+            status: failed ? 'error' : 'success',
+          });
+        },
+        onError: (error) => {
+          reportedError = error;
+        },
+      });
+    } catch (error) {
+      const message = reportedError || (error instanceof Error ? error.message : 'AI 助手暂时无法回答');
+      updateMessage(activeSessionId, `请求失败：${message}`, aiMessageId);
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
@@ -184,10 +296,10 @@ export default function ChatPage() {
       {/* 主聊天区域 */}
       <div className="flex-1 flex flex-col min-h-0 relative overflow-hidden">
         <div 
-          className="flex-1 overflow-y-auto p-4"
+          className="flex-1 overflow-y-auto px-3 py-4 sm:px-5 lg:px-6"
           style={{ paddingBottom: 200 }} 
         >
-          <div className="max-w-3xl mx-auto space-y-6">
+          <div className="w-full space-y-6">
             
               {/* 显示空消息提示 */}
               {currentMessages.length === 0 && (
@@ -282,7 +394,7 @@ export default function ChatPage() {
                     // 使用图标作为头像
                     avatar={{
                       title: msg.role === 'user' ? '用户' : 'AniNexus',
-                      avatar: '/Icon.png',
+                      avatar: msg.role === 'user' && userAvatar ? userAvatar : '/Icon.png',
                     }}
                     
                     avatarProps={{
@@ -402,6 +514,9 @@ export default function ChatPage() {
             loading={loading}
             selectedRole={selectedRole}
             onRoleChange={handleRoleChange}
+            selectedModel={selectedModel}
+            onModelChange={handleModelChange}
+            serverModel={serverModel}
           />
         </div>
       </div>

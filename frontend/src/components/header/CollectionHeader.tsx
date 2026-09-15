@@ -2,10 +2,9 @@
 
 import {Header} from './Header';
 import { useAppTheme } from '@/components/providers/LobeProvider';
-import { Segmented, ActionIcon, Icon } from '@lobehub/ui';
+import { Segmented, Icon } from '@lobehub/ui';
 import SearchBar from './SearchBar';
 import { Bookmark, Film, Book, Gamepad2, Users, Filter, LayoutGrid } from 'lucide-react';
-import { useState } from 'react';
 import { Dropdown } from 'antd';
 import type { MenuProps } from 'antd';
 
@@ -28,7 +27,6 @@ interface CollectionHeaderProps {
 
 export default function CollectionHeader({ 
   onSearch, 
-  onViewModeChange, 
   filterValue, 
   onFilterChange,
   statusValue = 'all',

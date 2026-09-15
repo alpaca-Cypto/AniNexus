@@ -37,3 +37,8 @@
 .search-portal__card:hover .search-portal__cover img,.search-portal__card:focus-visible .search-portal__cover img{transform:none}
 @media(hover:none),(pointer:coarse){.search-portal__card{perspective:none}.search-portal__card-inner{will-change:auto}}
 @media(prefers-reduced-motion:reduce){.search-portal__card{perspective:none}.search-portal__card-inner{will-change:auto!important;transform:none!important}}
+
+/* Catalog provenance stays compact so the poster and title remain primary. */
+.search-portal__card-copy>div{gap:8px}
+.search-portal__freshness{flex-shrink:0}
+.search-portal__freshness em{padding:2px 5px;color:var(--search-dark);border-radius:999px;background:var(--search-soft);font-size:9px;font-style:normal;font-weight:750}

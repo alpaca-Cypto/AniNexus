@@ -2,9 +2,8 @@
 
 import { useState } from 'react';
 import { Popover, Flexbox, ActionIcon } from '@lobehub/ui';
-import { Palette, ChevronDown, Check } from 'lucide-react';
+import { Palette, Check } from 'lucide-react';
 import { useAppTheme } from '@/components/providers/LobeProvider';
-import { PrimaryColors } from '@lobehub/ui';
 
 // 1. 官方标准色 (传 Key)
 const STANDARD_MAP = {

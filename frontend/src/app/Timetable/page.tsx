@@ -1,48 +1,54 @@
 'use client';
 
-import React, { useState, useCallback } from 'react';
-import { DndContext, PointerSensor, useSensor, useSensors, DragOverlay, pointerWithin } from '@dnd-kit/core';
+import React, { useState, useCallback, useEffect } from 'react';
+import {
+  DndContext,
+  PointerSensor,
+  useSensor,
+  useSensors,
+  DragOverlay,
+  pointerWithin,
+  type DragEndEvent,
+  type DragOverEvent,
+  type DragStartEvent,
+} from '@dnd-kit/core';
 import { useAppTheme } from '@/components/providers/LobeProvider';
 import {
   ActionIcon,
-  Avatar,
   Button,
   Flexbox,
   Header,
-  Popover,
   PopoverGroup,
-  Tag,
   toast,
 } from '@lobehub/ui';
-import { LobeHub } from '@lobehub/ui/brand';
 import {
   ChevronDown,
   ChevronUp,
-  Save,
-  CalendarArrowUp,
-  ListTodo,
   CalendarPlus,
-  User,
-  Settings,
-  LogOut,
   CloudSync,
-  Share,
   Utensils,
   Archive,
   BookOpen,
   Sparkles,
-  Calendar,
   Trash2
 } from 'lucide-react';
-import { LucideIcon } from 'lucide-react';
-import { BangumiItem as ScheduleItem, WatchType } from '@/services/bangumiService';
+import {
+  BangumiItem as ScheduleItem,
+  getBangumiCalendar,
+  getBangumiConnectionStatus,
+  WatchType,
+} from '@/services/bangumiService';
+import {
+  COLLECTIONS_UPDATED_EVENT,
+  collectionService,
+  type CollectionListResponse,
+} from '@/services/collections';
 import { DEMO_SCHEDULES } from '@/data/demoContent';
 import TimetableHeader from '@/components/header/TimetableHeader';
 import TimelineBoard from '@/components/timetable/TimelineBoard';
 import StandardLanes from '@/components/timetable/StandardLanes';
 import TimelineMediaCard from '@/components/timetable/TimelineMediaCard';
 import { ExportTickTickModal } from '@/components/Modal/ExportTickTickModal';
-import { SpotlightCard } from '@lobehub/ui/awesome';
 import dynamic from 'next/dynamic';
 
 const CollectionPanel = dynamic(() => import('@/components/timetable/DraggablePanel'), {
@@ -58,72 +64,7 @@ const getCurrentDay = (): number => {
   return day === 0 ? 6 : day - 1;
 };
 
-// 星期标题
 const WEEK_DAYS = ['周一', '周二', '周三', '周四', '周五', '周六', '周日'];
-
-// Today高亮颜色常量
-const TODAY_HIGHLIGHT_CLASS = "bg-green-50/50 dark:bg-green-900/10";
-
-// 现代化导航项组件
-const NavItem = ({
-  children,
-  items,
-  icon: Icon,
-}: {
-  children: string;
-  icon?: React.ElementType;
-  items: { icon?: React.ElementType; label: string; tag?: string; onClick?: () => void }[];
-}) => (
-  <Popover
-    arrow={false}
-    placement="bottomLeft"
-    trigger="hover"
-    content={
-      <Flexbox gap={6} style={{ minWidth: 160, padding: '8px' }}>
-        <div
-          style={{
-            color: 'var(--lobe-color-text-3)',
-            fontSize: 11,
-            fontWeight: 600,
-            letterSpacing: '0.5px',
-            padding: '4px 8px',
-            textTransform: 'uppercase',
-          }}
-        >
-          {children}
-        </div>
-        {items.map((item) => (
-          <Flexbox
-            horizontal
-            align="center"
-            key={item.label}
-            onClick={item.onClick}
-            style={{
-              borderRadius: 8,
-              cursor: 'pointer',
-              padding: '8px 12px',
-              transition: 'all 0.2s',
-            }}
-            className="hover:bg-gray-100 dark:hover:bg-gray-800"
-          >
-            {item.icon && <item.icon size={16} style={{ marginRight: 10 }} />}
-            <span style={{ flex: 1, fontSize: 14 }}>{item.label}</span>
-            {item.tag && (
-              <Tag color={item.tag === 'New' ? 'purple' : 'blue'} style={{ marginLeft: 8 }}>
-                {item.tag}
-              </Tag>
-            )}
-          </Flexbox>
-        ))}
-      </Flexbox>
-    }
-  >
-    <Button icon={Icon ? <Icon size={16} /> : undefined} style={{ gap: 6 }} type="text">
-      {children}
-      <ChevronDown size={14} style={{ opacity: 0.6 }} />
-    </Button>
-  </Popover>
-);
 
 // 泳道配置
 const SWIMLANES = [
@@ -161,45 +102,16 @@ const SWIMLANES = [
   },
 ];
 
-// 泳道类型定义
-interface Swimlane {
-  id: string;
-  title: string;
-  icon: LucideIcon;
-  color: string;
-  bgColor: string;
-  borderColor: string;
-}
-
-// 当前星期几高亮指示器组件
-const CurrentDayIndicator: React.FC<{ day: number }> = ({ day }) => {
-  const currentDay = getCurrentDay();
-  const isToday = day === currentDay;
-  const { isDarkMode } = useAppTheme();
-  
-  return (
-    <div className="text-center py-3">
-      <div className={`text-xs font-medium uppercase tracking-wider ${isToday ? (isDarkMode ? 'text-white' : 'text-gray-800') : (isDarkMode ? 'text-gray-400' : 'text-gray-400')}`}>
-        {WEEK_DAYS[day]}
-      </div>
-      {isToday && (
-        <div className={`mt-1 inline-flex items-center justify-center rounded-full px-2 py-0.5 text-xs font-medium ${isDarkMode ? 'bg-gray-700 text-white' : 'bg-gray-200 text-gray-800'}`}>
-          Today
-        </div>
-      )}
-    </div>
-  );
-};
-
 // 主页面组件
 export default function WeeklyBoardPage() {
   const { isDarkMode } = useAppTheme();
   const currentDay = getCurrentDay();
   const [scheduleItems, setScheduleItems] = useState<ScheduleItem[]>(() => DEMO_SCHEDULES.map((item) => ({ ...item, subject: { ...item.subject } })));
+  const [collectionItems, setCollectionItems] = useState<ScheduleItem[]>(() => DEMO_SCHEDULES.map((item) => ({ ...item, subject: { ...item.subject } })));
   const [activeDragItem, setActiveDragItem] = useState<ScheduleItem | null>(null);
   const [overSlotId, setOverSlotId] = useState<string | null>(null);
   const [isLanesCollapsed, setIsLanesCollapsed] = useState(false);
-  const isLoading = false;
+  const [isLoading, setIsLoading] = useState(false);
   const error = null;
   const [isTickTickModalOpen, setIsTickTickModalOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
@@ -211,43 +123,19 @@ export default function WeeklyBoardPage() {
     })
   );
   
-  // 根据分类和星期几获取项目
-  const getItemsByCategoryAndDay = (category: string, day: number): ScheduleItem[] => {
-    // 由于我们已经移除了 category 字段，这里需要根据 watch_type 来判断
-    let watchType: WatchType | undefined;
-    switch (category) {
-      case 'Meal':
-        watchType = WatchType.MEAL;
-        break;
-      case 'Backlog':
-        watchType = WatchType.LONG_GRASS;
-        break;
-      case 'Reading':
-        watchType = WatchType.LEISURE;
-        break;
-      case 'New':
-        watchType = WatchType.NEW;
-        break;
-    }
-    return scheduleItems.filter(item => item.watch_type === watchType && item.watch_day === day);
-  };
-  
   // 前三个分类 (Meal, Backlog, Reading)
   const standardLanes = SWIMLANES.filter(swimlane => swimlane.id !== 'New');
-  
-  // 新番时间分类
-  const timelineLane = SWIMLANES.find(swimlane => swimlane.id === 'New');
   
   // 辅助方法：去除ID前缀，获取真实ID
   const getRealId = (id: string) => id.replace(/^(panel-|board-|timeline-|lane-)/, '');
   
   // 拖拽开始处理器
-  const handleDragStart = (event: any) => {
+  const handleDragStart = (event: DragStartEvent) => {
     const { active } = event;
     
     // 首先尝试从active.data中获取拖动的项目（适用于从CollectionPanel拖动的情况）
     if (active.data && active.data.current) {
-      setActiveDragItem(active.data.current);
+      setActiveDragItem(active.data.current as ScheduleItem);
     } else {
       // 然后尝试从scheduleItems中查找（适用于从已有泳道拖动的情况）
       const realId = getRealId(String(active.id));
@@ -259,16 +147,16 @@ export default function WeeklyBoardPage() {
   };
   
   // 拖拽过程处理器
-  const handleDragOver = (event: any) => {
+  const handleDragOver = (event: DragOverEvent) => {
     const { over } = event;
     if (over) {
-      setOverSlotId(over.id);
+      setOverSlotId(String(over.id));
     } else {
       setOverSlotId(null);
     }
   };
   
-  const handleDragEnd = (event: any) => {
+  const handleDragEnd = (event: DragEndEvent) => {
     const { active, over } = event;
     
     if (typeof setOverSlotId === 'function') setOverSlotId(null);
@@ -295,7 +183,7 @@ export default function WeeklyBoardPage() {
       
       // 如果还是找不到，尝试从active.data中获取（适用于从CollectionPanel拖动的情况）
       if (!activeItem && active.data && active.data.current) {
-        activeItem = active.data.current;
+        activeItem = active.data.current as ScheduleItem;
       }
       
       if (!activeItem) return prevItems;
@@ -406,12 +294,105 @@ export default function WeeklyBoardPage() {
   }, []);
   
   // 处理获取 Bangumi 日历数据
-  const handleFetchBangumiCalendar = useCallback(() => {
-    setScheduleItems(DEMO_SCHEDULES.map((item) => ({ ...item, subject: { ...item.subject } })));
-    toast.success('已载入演示新番');
+  const handleFetchBangumiCalendar = useCallback(async () => {
+    setIsLoading(true);
+    try {
+      const [calendarResult, connectionResult] = await Promise.allSettled([
+        getBangumiCalendar(),
+        getBangumiConnectionStatus(),
+      ]);
+      if (calendarResult.status === 'rejected') {
+        throw calendarResult.reason;
+      }
+      const items = calendarResult.value;
+      setScheduleItems(items);
+      toast.success(`已从 Bangumi 导入 ${items.length} 部本周新番`);
+      if (connectionResult.status === 'fulfilled') {
+        const connection = connectionResult.value;
+        if (connection.configured && !connection.connected) {
+          toast.warning(connection.detail || 'Bangumi Access Token 无效，当前显示公开日历');
+        } else if (connection.connected && connection.username) {
+          toast.info(`Bangumi 已连接：${connection.username}`);
+        }
+      }
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'Bangumi 日历导入失败');
+    } finally {
+      setIsLoading(false);
+    }
   }, []);
+
+  const loadSavedCollections = useCallback(async () => {
+    const items: CollectionListResponse['items'] = [];
+    let offset = 0;
+    while (true) {
+      const page = await collectionService.getCollections({ limit: 100, offset });
+      items.push(...page.items);
+      offset += page.items.length;
+      if (page.items.length === 0 || offset >= page.total) break;
+    }
+
+    const savedCollections: ScheduleItem[] = items.map((item) => ({
+      collection: item.collection ? {
+        ...item.collection,
+        source: item.subject.source,
+        source_id: String(item.subject.source_id),
+        user_id: 1,
+      } : null,
+      subject: {
+        ...item.subject,
+        source_id: String(item.subject.source_id),
+      },
+    }));
+    setCollectionItems(savedCollections);
+    return savedCollections;
+  }, []);
+
+  useEffect(() => {
+    const refreshCollections = () => {
+      void loadSavedCollections().catch(() => {
+        toast.error('无法刷新我的收藏');
+      });
+    };
+    refreshCollections();
+    window.addEventListener(COLLECTIONS_UPDATED_EVENT, refreshCollections);
+    return () => window.removeEventListener(COLLECTIONS_UPDATED_EVENT, refreshCollections);
+  }, [loadSavedCollections]);
+
+  const handleSyncPersonalCalendar = useCallback(async () => {
+    setIsLoading(true);
+    try {
+      const syncResult = await collectionService.syncBgm({ subject_type: 2 });
+      const personalCollections = await loadSavedCollections();
+
+      const watchingIds = new Set(
+        personalCollections
+          .filter((item) => item.collection?.type === 3 && item.subject.source === 'bangumi')
+          .map((item) => String(item.subject.source_id)),
+      );
+      const publicCalendar = await getBangumiCalendar();
+      const personalCalendar = publicCalendar.filter((item) =>
+        watchingIds.has(String(item.subject.source_id)),
+      );
+      setScheduleItems(personalCalendar);
+
+      if (syncResult.sync_count === 0) {
+        toast.info('Bangumi 账号已连接，但当前没有动画收藏');
+      } else if (watchingIds.size === 0) {
+        toast.info(`已同步 ${syncResult.import_count} 部动画，当前没有“在看”作品`);
+      } else if (personalCalendar.length === 0) {
+        toast.info(`已同步 ${watchingIds.size} 部“在看”作品，本周日历暂无匹配`);
+      } else {
+        toast.success(`已同步个人日历，本周匹配 ${personalCalendar.length} 部“在看”作品`);
+      }
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'Bangumi 个人收藏同步失败');
+    } finally {
+      setIsLoading(false);
+    }
+  }, [loadSavedCollections]);
   // 同步数据回调
-  const handleSyncData = useCallback((data: any[]) => {
+  const handleSyncData = useCallback((data: ScheduleItem[]) => {
     setScheduleItems(data);
   }, []);
   
@@ -501,7 +482,16 @@ export default function WeeklyBoardPage() {
                 logo={
                   <PopoverGroup contentLayoutAnimation>
                     <Flexbox horizontal gap={4} justify="center" style={{ width: '100%' }}>
-                      {/* 核心强引导操作：一键导入 */}
+                      <Button
+                        type="primary"
+                        onClick={handleSyncPersonalCalendar}
+                        disabled={isLoading}
+                        loading={isLoading}
+                        icon={<CloudSync size={16} />}
+                        style={{ height: '36px' }}
+                      >
+                        同步我的在看
+                      </Button>
                       <Button
                         type="text"
                         onClick={handleFetchBangumiCalendar}
@@ -510,7 +500,7 @@ export default function WeeklyBoardPage() {
                         variant="text"
                         style={{ height: '36px' }}
                       >
-                        一键导入新番
+                        浏览本周新番
                       </Button>
                       {/* 折叠/展开标准泳道 */}
                     </Flexbox>
@@ -556,7 +546,7 @@ export default function WeeklyBoardPage() {
           </div>
           
           {/* 右侧可拖拽面板 */}
-          <CollectionPanel searchQuery={searchQuery} />
+          <CollectionPanel searchQuery={searchQuery} collections={collectionItems} />
         </div>
       </div>
       

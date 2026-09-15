@@ -3,8 +3,18 @@ import isoWeek from 'dayjs/plugin/isoWeek';
 import { BangumiItem, WatchType } from './bangumiService';
 dayjs.extend(isoWeek); // 启用 isoWeek，确保周一为每周第一天 (1=周一, 7=周日)
 
-export function generateCalendarEvents(items: BangumiItem[]) {
-  const events: any[] = [];
+export interface CalendarEvent {
+  Subject: string;
+  StartDate: string;
+  StartTime?: string;
+  EndDate?: string;
+  EndTime?: string;
+  AllDay: boolean;
+  Description?: string;
+}
+
+export function generateCalendarEvents(items: BangumiItem[]): CalendarEvent[] {
+  const events: CalendarEvent[] = [];
   const now = dayjs();
 
   // 遍历所有项目
@@ -74,7 +84,7 @@ export function generateCalendarEvents(items: BangumiItem[]) {
 }
 
 // 假设传入的是上一段代码生成的 events 数组
-export function generateCSVString(events: any[]): string {
+export function generateCSVString(events: CalendarEvent[]): string {
   // 1. 定义标准日历 CSV 表头
   const headers = [
     'Subject',      // 标题
@@ -145,7 +155,6 @@ export function generateVoiceCommand(item: BangumiItem): string {
     case WatchType.LEISURE:
     case WatchType.LONG_GRASS:
       // 闲暇/长草：利用语音助手的“多天全天日程”功能
-      const endDayOffset = (item.watch_day || 1) - 1 + (item.duration || 1) - 1; 
       // 简单粗暴的兜底话术，避免跨周计算太复杂导致语音助手听不懂
       return `帮我添加一个全天日程，从本${watchDay}开始，持续 ${item.duration || 1} 天，标题为“补番《${subjectName}》”。`;
 

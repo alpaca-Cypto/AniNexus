@@ -62,7 +62,7 @@ interface ChatStore {
 // 创建聊天存储
 const useChatStore = create<ChatStore>()(
   persist(
-    (set, get) => ({
+    (set) => ({
       // 初始状态
       sessions: [],
       chatMessages: new Map(),
@@ -95,7 +95,7 @@ const useChatStore = create<ChatStore>()(
       },
 
       // 发送消息
-      sendMessage: (sessionId, content, extra?: any) => {
+      sendMessage: (sessionId, content) => {
         set((state) => {
           // 获取当前会话的消息
           const currentMessages = state.chatMessages && typeof state.chatMessages.get === 'function'
@@ -111,7 +111,6 @@ const useChatStore = create<ChatStore>()(
               role: 'user',
               content,
               createdAt: new Date(),
-              extra,
             };
           } else {
             // 如果是消息对象，直接使用
@@ -317,11 +316,28 @@ const useChatStore = create<ChatStore>()(
         activeSessionId: state.activeSessionId,
       }),
       // 从存储中恢复时，将对象转换回 Map
-        onRehydrateStorage: (state) => {
-          if (state && typeof state.chatMessages === 'object') {
-            state.chatMessages = new Map(Object.entries(state.chatMessages));
-          }
-        },
+      onRehydrateStorage: () => (state) => {
+        if (!state) return;
+        const storedMessages = state.chatMessages as unknown;
+        if (storedMessages && typeof storedMessages === 'object') {
+          const entries = storedMessages instanceof Map
+            ? Array.from(storedMessages.entries())
+            : Object.entries(storedMessages);
+          state.chatMessages = new Map(
+            entries.map(([sessionId, messages]) => [
+              sessionId,
+              (messages as Message[]).map((message) => ({
+                ...message,
+                createdAt: new Date(message.createdAt),
+              })),
+            ]),
+          );
+        }
+        state.sessions = state.sessions.map((session) => ({
+          ...session,
+          updatedAt: new Date(session.updatedAt),
+        }));
+      },
     }
   )
 );

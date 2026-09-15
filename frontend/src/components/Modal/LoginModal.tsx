@@ -1,10 +1,12 @@
 import { Modal, Button, Input, Flexbox, Icon, Tooltip, toast, Avatar } from '@lobehub/ui';
+import Image from 'next/image';
 import { 
   User, Fingerprint, Link as LinkIcon, FileText, 
-  ChevronDown, ChevronRight, CircleHelp,
+  ChevronDown, ChevronRight,
   RefreshCw, Sparkles, XCircle, CheckCircle2, AlertCircle
 } from 'lucide-react';
 import { useState, useEffect } from 'react';
+import type { LucideIcon } from 'lucide-react';
 import { authService } from '@/services/auth';
 
 interface LoginModalProps {
@@ -174,7 +176,7 @@ const LoginModal = ({ isOpen, onClose, onLoginSuccess }: LoginModalProps) => {
     required, 
     tooltip 
   }: { 
-    icon: any, 
+    icon: LucideIcon,
     title: string, 
     required?: boolean, 
     tooltip?: string 
@@ -346,7 +348,16 @@ const LoginModal = ({ isOpen, onClose, onLoginSuccess }: LoginModalProps) => {
                     background: '#f5f5f5', overflow: 'hidden', flex: 'none',
                     border: '1px solid var(--lobe-color-border)'
                   }}>
-                    {avatarUrl && <img src={avatarUrl} alt="preview" style={{width:'100%', height:'100%', objectFit:'cover'}} />}
+                    {avatarUrl && (
+                      <Image
+                        src={avatarUrl}
+                        alt="头像预览"
+                        width={32}
+                        height={32}
+                        unoptimized
+                        style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+                      />
+                    )}
                   </div>
                 </Flexbox>
               </div>

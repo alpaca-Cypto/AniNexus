@@ -2,16 +2,22 @@
 
 import Link from "next/link";
 import Image from "next/image";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import type { CSSProperties, FormEvent } from "react";
 import { Bot, CalendarDays, ChevronDown, ChevronLeft, ChevronRight, Clock3, Library, LoaderCircle, Search, SlidersHorizontal, Sparkles, Star, X } from "lucide-react";
 import TiltedCardLink from "@/components/motion/TiltedCardLink";
+import {
+  consumeHomeNavigationState,
+  saveHomeNavigationState,
+  type HomeMediaTab,
+  type HomeSortKey,
+} from "@/lib/homeNavigationMemory";
 import type { SearchResult } from "@/services/search";
 import { searchService } from "@/services/search";
 import "./search-home.css";
 
-type MediaTab = "anime" | "manga";
-type SortKey = "score" | "date" | "title";
+type MediaTab = HomeMediaTab;
+type SortKey = HomeSortKey;
 const HISTORY_KEY = "aninexus-search-history";
 const PAGE_SIZE = 36;
 
@@ -29,7 +35,16 @@ function readHistory(): string[] {
   } catch { return []; }
 }
 
+function displaySource(source?: string | null): string {
+  if (source === "bangumi") return "Bangumi";
+  if (source === "myanimelist") return "MAL";
+  if (source === "douban") return "豆瓣";
+  return "AniNexus";
+}
+
 export default function Home() {
+  const scrollContainerRef = useRef<HTMLDivElement>(null);
+  const [navigationReady, setNavigationReady] = useState(false);
   const [tab, setTab] = useState<MediaTab>("anime");
   const [query, setQuery] = useState("");
   const [history, setHistory] = useState<string[]>(readHistory);
@@ -44,12 +59,35 @@ export default function Home() {
   const [activeQuery, setActiveQuery] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+  const skipRestoredFetchRef = useRef(false);
+  const restoredScrollTopRef = useRef<number | null>(null);
 
   const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
   const pageNumbers = useMemo(() => {
     const start = Math.max(1, Math.min(page - 2, totalPages - 4));
     return Array.from({ length: Math.min(5, totalPages) }, (_, index) => start + index);
   }, [page, totalPages]);
+
+  useEffect(() => {
+    const savedState = consumeHomeNavigationState();
+    if (savedState) {
+      skipRestoredFetchRef.current = true;
+      restoredScrollTopRef.current = savedState.scrollTop;
+      // Hydration from sessionStorage must happen after the client mounts.
+      // eslint-disable-next-line react-hooks/set-state-in-effect
+      setTab(savedState.tab);
+      setQuery(savedState.query);
+      setShowFilters(savedState.showFilters);
+      setYearFrom(savedState.yearFrom);
+      setScoreFrom(savedState.scoreFrom);
+      setSort(savedState.sort);
+      setResults(savedState.results);
+      setTotal(savedState.total);
+      setPage(savedState.page);
+      setActiveQuery(savedState.activeQuery);
+    }
+    setNavigationReady(true);
+  }, []);
 
   const runSearch = (keyword = query, remember = true) => {
     const normalized = keyword.trim();
@@ -64,9 +102,18 @@ export default function Home() {
   };
 
   useEffect(() => {
+    if (!navigationReady) return;
+    if (skipRestoredFetchRef.current) {
+      skipRestoredFetchRef.current = false;
+      return;
+    }
+
     let active = true;
-    setLoading(true);
-    setError("");
+    queueMicrotask(() => {
+      if (!active) return;
+      setLoading(true);
+      setError("");
+    });
     void searchService.searchSubjectsPage({
       keyword: activeQuery,
       type: tab === "anime" ? 2 : 1,
@@ -88,7 +135,42 @@ export default function Home() {
       if (active) setLoading(false);
     });
     return () => { active = false; };
-  }, [activeQuery, page, scoreFrom, sort, tab, yearFrom]);
+  }, [activeQuery, navigationReady, page, scoreFrom, sort, tab, yearFrom]);
+
+  useEffect(() => {
+    if (!navigationReady || restoredScrollTopRef.current === null) return;
+
+    const scrollTop = restoredScrollTopRef.current;
+    restoredScrollTopRef.current = null;
+    let secondFrame = 0;
+    const firstFrame = requestAnimationFrame(() => {
+      scrollContainerRef.current?.scrollTo({ top: scrollTop });
+      secondFrame = requestAnimationFrame(() => scrollContainerRef.current?.scrollTo({ top: scrollTop }));
+    });
+
+    return () => {
+      cancelAnimationFrame(firstFrame);
+      cancelAnimationFrame(secondFrame);
+    };
+  }, [navigationReady, results]);
+
+  const rememberListPosition = (targetSubjectId: number) => {
+    if (!results) return;
+    saveHomeNavigationState({
+      tab,
+      query,
+      showFilters,
+      yearFrom,
+      scoreFrom,
+      sort,
+      results,
+      total,
+      page,
+      activeQuery,
+      scrollTop: scrollContainerRef.current?.scrollTop ?? 0,
+      targetSubjectId,
+    });
+  };
 
   const submitSearch = (event: FormEvent) => { event.preventDefault(); runSearch(); };
   const switchTab = (next: MediaTab) => { setTab(next); setPage(1); setResults(null); setError(""); };
@@ -105,7 +187,7 @@ export default function Home() {
   };
 
   return (
-    <div className="search-portal">
+    <div className="search-portal" ref={scrollContainerRef}>
       <main className="search-portal__main">
         <section className="search-portal__hero">
           <i className="search-portal__shape search-portal__shape--ring" aria-hidden="true" />
@@ -145,17 +227,19 @@ export default function Home() {
         </section>
 
         <section className="search-portal__results" aria-live="polite" aria-busy={loading}>
-          {loading ? <div className="search-portal__skeletons">{Array.from({ length: PAGE_SIZE }, (_, index) => <div className="search-portal__skeleton" key={index}><i /><span /><span /></div>)}</div>
+          {!navigationReady || loading ? <div className="search-portal__skeletons">{Array.from({ length: PAGE_SIZE }, (_, index) => <div className="search-portal__skeleton" key={index}><i /><span /><span /></div>)}</div>
           : results && results.length > 0 ? <>
             <div className="search-portal__result-heading"><div><h2>{tab === "anime" ? "动漫" : "漫画"}搜索结果</h2><p>第 {page} / {totalPages} 页，共 {total.toLocaleString("zh-CN")} 个条目</p></div></div>
-            <div className="search-portal__grid" key={`${tab}-${page}-${activeQuery}-${yearFrom}-${scoreFrom}-${sort}`}>{results.map(({ subject }, index) => {
+            <div className="search-portal__grid" key={`${tab}-${page}-${activeQuery}-${yearFrom}-${scoreFrom}-${sort}`}>{results.map((result, index) => {
+              const { subject } = result;
               const title = subject.name_cn || subject.name;
               const cover = subject.images?.large || subject.images?.common || subject.image;
               const score = Number(subject.rating?.score || subject.score || 0);
+              const scoreSource = displaySource(result.score_source || result.primary_source || subject.source);
               const sourceId = subject.source_id || subject.id;
-              return <TiltedCardLink className="search-portal__card" href={`/subjects/${subject.id}`} key={`${subject.source}-${sourceId}`} style={{ "--card-index": Math.min(index, 11) } as CSSProperties}>
+              return <TiltedCardLink className="search-portal__card" href={`/subjects/${subject.id}`} key={`${subject.source}-${sourceId}`} style={{ "--card-index": Math.min(index, 11) } as CSSProperties} onClick={() => rememberListPosition(subject.id)}>
                 <div className="search-portal__cover">{cover ? <Image src={cover} alt={`${title} 封面`} fill sizes="(max-width: 760px) 46vw, 180px" referrerPolicy="no-referrer" /> : <div className="search-portal__cover-empty">AN</div>}<span>{subject.type === 2 ? "动画" : "书籍"}</span></div>
-                <div className="search-portal__card-copy"><h3>{title}</h3>{subject.name !== title && <p>{subject.name}</p>}<div>{score > 0 ? <span><Star size={14} fill="currentColor" /> {score.toFixed(1)}</span> : <span>暂无评分</span>}<time>{subject.date?.slice(0, 4) || "年份未知"}</time></div></div>
+                <div className="search-portal__card-copy"><h3>{title}</h3>{subject.name !== title && <p>{subject.name}</p>}<div>{score > 0 ? <span title={`评分来源：${scoreSource}`}><Star size={14} fill="currentColor" /> {scoreSource} {score.toFixed(1)}</span> : <span>暂无评分</span>}<span className="search-portal__freshness">{result.is_stale && <em title={result.data_updated_at ? `数据更新时间：${result.data_updated_at}` : "数据等待后台刷新"}>待更新</em>}<time>{subject.date?.slice(0, 4) || "年份未知"}</time></span></div></div>
               </TiltedCardLink>;
             })}</div>
             {totalPages > 1 && <nav className="search-portal__pagination" aria-label="搜索结果分页">

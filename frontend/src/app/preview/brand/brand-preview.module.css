@@ -1,0 +1,239 @@
+.page {
+  --ink: #281925;
+  --muted: #786a75;
+  --line: #eadfe6;
+  --paper: #fffdfd;
+  min-height: 100%;
+  overflow-y: auto;
+  color: var(--ink);
+  background:
+    radial-gradient(circle at 88% 4%, rgba(227, 54, 118, 0.1), transparent 27rem),
+    #f8f3f6;
+  font-family: "Segoe UI Variable Text", "Segoe UI", sans-serif;
+}
+
+.intro {
+  width: min(1180px, calc(100% - 48px));
+  margin: 0 auto;
+  padding: 64px 0 34px;
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 32px;
+}
+
+.intro p {
+  margin: 0 0 10px;
+  color: #bd2d64;
+  font: 700 0.72rem/1.2 "Bahnschrift", "Segoe UI", sans-serif;
+  letter-spacing: 0.16em;
+}
+
+.intro h1 {
+  margin: 0;
+  font-size: clamp(2.15rem, 5vw, 4.5rem);
+  line-height: 0.98;
+  letter-spacing: -0.06em;
+}
+
+.intro span {
+  display: block;
+  margin-top: 16px;
+  color: var(--muted);
+  font-size: 0.92rem;
+}
+
+.intro a {
+  flex: none;
+  padding: 10px 15px;
+  color: var(--ink);
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.72);
+  text-decoration: none;
+  font-size: 0.83rem;
+  font-weight: 650;
+}
+
+.comparison {
+  width: min(1180px, calc(100% - 48px));
+  margin: 0 auto;
+  border-top: 1px solid var(--line);
+  background: var(--paper);
+}
+
+.row {
+  min-height: 156px;
+  padding: 28px 30px;
+  display: grid;
+  grid-template-columns: minmax(240px, 0.72fr) minmax(520px, 1.28fr);
+  align-items: center;
+  gap: 42px;
+  border-bottom: 1px solid var(--line);
+}
+
+.meta {
+  display: grid;
+  grid-template-columns: 34px 1fr;
+  gap: 15px;
+  align-items: start;
+}
+
+.meta > span {
+  color: #c52f68;
+  font: 700 0.72rem/1.5 "Bahnschrift", "Segoe UI", sans-serif;
+}
+
+.meta h2 {
+  margin: 0;
+  font-size: 1rem;
+  letter-spacing: -0.02em;
+}
+
+.meta p {
+  max-width: 25rem;
+  margin: 7px 0 0;
+  color: var(--muted);
+  font-size: 0.8rem;
+  line-height: 1.65;
+}
+
+.headerSample {
+  min-height: 76px;
+  padding: 0 25px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 24px;
+  overflow: hidden;
+  border: 1px solid #eee5ea;
+  border-radius: 16px;
+  background: #fff;
+  box-shadow: 0 13px 34px rgba(78, 24, 49, 0.07);
+}
+
+.lockup {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  white-space: nowrap;
+}
+
+.lockup img {
+  width: 44px;
+  height: 44px;
+  object-fit: contain;
+}
+
+.lockup strong {
+  color: #21131e;
+  font-size: 1.42rem;
+  line-height: 1;
+}
+
+.editorial {
+  font-family: Georgia, "Times New Roman", serif;
+  font-weight: 600;
+  letter-spacing: -0.045em;
+}
+
+.modern {
+  font-family: "Segoe UI Variable Display", "Segoe UI", sans-serif;
+  font-weight: 720;
+  letter-spacing: -0.055em;
+}
+
+.friendly {
+  font-family: "Trebuchet MS", "Segoe UI", sans-serif;
+  font-weight: 700;
+  letter-spacing: -0.045em;
+}
+
+.technical {
+  font-family: "Bahnschrift", "Arial Narrow", sans-serif;
+  font-stretch: condensed;
+  font-weight: 600;
+  letter-spacing: 0.025em;
+  text-transform: uppercase;
+}
+
+.hybrid {
+  display: inline-flex;
+  align-items: baseline;
+  font-family: "Segoe UI Variable Display", "Segoe UI", sans-serif;
+  letter-spacing: -0.055em;
+}
+
+.hybrid span {
+  font-family: Georgia, "Times New Roman", serif;
+  font-style: italic;
+  font-weight: 500;
+}
+
+.hybrid b {
+  color: #b9215d;
+  font-weight: 780;
+}
+
+.headerSample nav {
+  display: flex;
+  gap: 22px;
+  color: #786a75;
+  font-size: 0.76rem;
+  font-weight: 650;
+  white-space: nowrap;
+}
+
+.note {
+  width: min(1180px, calc(100% - 48px));
+  margin: 0 auto;
+  padding: 24px 0 54px;
+  color: var(--muted);
+  font-size: 0.78rem;
+  text-align: right;
+}
+
+@media (max-width: 850px) {
+  .row {
+    grid-template-columns: 1fr;
+    gap: 19px;
+  }
+
+  .headerSample nav {
+    display: none;
+  }
+}
+
+@media (max-width: 560px) {
+  .intro,
+  .comparison,
+  .note {
+    width: min(100% - 28px, 1180px);
+  }
+
+  .intro {
+    padding-top: 38px;
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .row {
+    min-height: 0;
+    padding: 24px 18px;
+  }
+
+  .headerSample {
+    min-height: 70px;
+    padding: 0 17px;
+  }
+
+  .lockup strong {
+    font-size: 1.25rem;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .page * {
+    scroll-behavior: auto !important;
+  }
+}

@@ -9,12 +9,14 @@ from sqlalchemy import (
     BigInteger,
     Date,
     DateTime,
+    ForeignKey,
     Index,
     Integer,
     Numeric,
     SmallInteger,
     String,
     Text,
+    UniqueConstraint,
 )
 from sqlalchemy.orm import Mapped, mapped_column
 from sqlalchemy.sql import func
@@ -83,3 +85,31 @@ class Subject(Base):
     updated_at: Mapped[datetime] = mapped_column(
         DateTime, nullable=False, server_default=func.now(), onupdate=func.now()
     )
+
+
+class SubjectExternalId(Base):
+    """Stable provider identity mapped to an AniNexus canonical subject."""
+
+    __tablename__ = "subject_external_ids"
+    __table_args__ = (
+        UniqueConstraint(
+            "provider",
+            "external_id",
+            "subject_type",
+            name="uq_subject_external_provider_id_type",
+        ),
+        Index("ix_subject_external_subject_provider", "subject_id", "provider"),
+    )
+
+    id: Mapped[int] = mapped_column(
+        BigInteger().with_variant(Integer, "sqlite"), primary_key=True, autoincrement=True
+    )
+    subject_id: Mapped[int] = mapped_column(
+        ForeignKey("subjects.id", ondelete="CASCADE"), nullable=False
+    )
+    provider: Mapped[str] = mapped_column(String(32), nullable=False)
+    external_id: Mapped[str] = mapped_column(String(64), nullable=False)
+    subject_type: Mapped[int] = mapped_column(SmallInteger, nullable=False)
+    provider_updated_at: Mapped[datetime | None] = mapped_column(DateTime)
+    last_fetched_at: Mapped[datetime] = mapped_column(DateTime, nullable=False)
+    raw_hash: Mapped[str] = mapped_column(String(64), nullable=False)

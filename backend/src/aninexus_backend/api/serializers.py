@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from datetime import UTC, datetime, timedelta
 from typing import Any
 
 from aninexus_backend.models import Collection, Schedule, Subject, UpdateReminder
@@ -30,6 +31,23 @@ def serialize_subject(subject: Subject) -> dict[str, Any]:
         "tags": [
             {"name": tag, "count": 0, "total_cont": 0} for tag in (subject.tags or [])
         ],
+    }
+
+
+def serialize_catalog_item(subject: Subject) -> dict[str, Any]:
+    """Serialize the stable public-catalog interface consumed by discovery pages."""
+
+    updated_at = subject.source_updated_at or subject.updated_at
+    comparable_updated_at = (
+        updated_at.replace(tzinfo=UTC) if updated_at.tzinfo is None else updated_at
+    )
+    return {
+        "subject": serialize_subject(subject),
+        "collection": None,
+        "primary_source": subject.source,
+        "score_source": subject.source if subject.score is not None else None,
+        "data_updated_at": updated_at.isoformat(),
+        "is_stale": comparable_updated_at < datetime.now(UTC) - timedelta(days=7),
     }
 
 
