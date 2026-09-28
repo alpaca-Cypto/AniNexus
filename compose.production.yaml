@@ -1,0 +1,124 @@
+name: aninexus-production
+
+services:
+  mysql:
+    image: mysql:8.4.11
+    restart: unless-stopped
+    environment:
+      MYSQL_DATABASE: aninexus
+      MYSQL_USER: aninexus
+      MYSQL_PASSWORD_FILE: /run/secrets/mysql_password
+      MYSQL_ROOT_PASSWORD_FILE: /run/secrets/mysql_root_password
+      TZ: Asia/Shanghai
+    secrets:
+      - mysql_password
+      - mysql_root_password
+    command:
+      - --character-set-server=utf8mb4
+      - --collation-server=utf8mb4_0900_ai_ci
+    volumes:
+      - mysql_data:/var/lib/mysql
+    healthcheck:
+      test: ["CMD-SHELL", "mysqladmin ping -h localhost -uroot -p$$(cat /run/secrets/mysql_root_password) --silent"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+
+  backend:
+    build: ./backend
+    restart: unless-stopped
+    environment: &backend_environment
+      DATABASE_HOST: mysql
+      DATABASE_NAME: aninexus
+      DATABASE_USER: aninexus
+      DATABASE_PASSWORD_FILE: /run/secrets/mysql_password
+      AUTO_CREATE_TABLES: "false"
+      CATALOG_SOURCE_MODE: ${CATALOG_SOURCE_MODE:-mixed}
+      # The owner-only HTTP loopback preview uses false. Set true with HTTPS.
+      SESSION_COOKIE_SECURE: ${SESSION_COOKIE_SECURE:-false}
+      REGISTRATION_INVITE_REQUIRED: "true"
+      OWNER_USER_ID: ${OWNER_USER_ID:-0}
+      BANGUMI_SYNC_ENABLED: "false"
+    secrets:
+      - mysql_password
+    depends_on:
+      mysql:
+        condition: service_healthy
+      db-migrate:
+        condition: service_completed_successfully
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/api/v1/health')"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile.production
+    restart: unless-stopped
+    environment:
+      API_PROXY_URL: http://backend:8000
+      NEXT_TELEMETRY_DISABLED: "1"
+    ports:
+      - "127.0.0.1:${FRONTEND_PORT:-3000}:3000"
+    depends_on:
+      backend:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:3000/').then(r => { if (!r.ok) process.exit(1) }).catch(() => process.exit(1))"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+
+  db-migrate:
+    build: ./backend
+    environment: *backend_environment
+    secrets:
+      - mysql_password
+    depends_on:
+      mysql:
+        condition: service_healthy
+    command: ["alembic", "upgrade", "head"]
+
+  catalog-import:
+    profiles: ["import"]
+    build: ./backend
+    environment: *backend_environment
+    secrets:
+      - mysql_password
+    volumes:
+      - ./backend/data:/catalog:ro
+    depends_on:
+      mysql:
+        condition: service_healthy
+      db-migrate:
+        condition: service_completed_successfully
+    command:
+      - aninexus-import-public-data
+      - --source
+      - /catalog/aninexus-public-catalog.jsonl.gz
+      - --skip-create-database
+      - --skip-create-tables
+
+  bangumi-refresh:
+    build: ./backend
+    restart: unless-stopped
+    environment: *backend_environment
+    secrets:
+      - mysql_password
+    depends_on:
+      mysql:
+        condition: service_healthy
+      db-migrate:
+        condition: service_completed_successfully
+    command: ["aninexus-refresh-bangumi", "--loop", "--limit", "200"]
+
+secrets:
+  mysql_password:
+    file: ${ANINEXUS_MYSQL_PASSWORD_FILE:?Set an absolute password file path outside the repository}
+  mysql_root_password:
+    file: ${ANINEXUS_MYSQL_ROOT_PASSWORD_FILE:?Set an absolute root password file path outside the repository}
+
+volumes:
+  mysql_data:

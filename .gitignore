@@ -151,6 +151,7 @@ activemq-data/
 
 # Environments
 .env
+.env.production.local
 .envrc
 .venv
 env/
@@ -231,6 +232,15 @@ apikey/
 # Generated public catalog archives belong in Releases or Git LFS after review.
 backend/data/*.jsonl.gz
 backend/data/*-match-plan.jsonl
+
+# Database dumps and restore drills. These hold real account records (password
+# hashes, session and invite token hashes), and git history is permanent, so
+# keep them on the backup volume instead of in the repository.
+backend/data/*.sql
+backend/data/*.sql.gz
+
+# Scratch databases created by the test suite.
+backend/data/pytest-*/
 
 # Marimo
 marimo/_static/
