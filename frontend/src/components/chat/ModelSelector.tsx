@@ -59,13 +59,8 @@ export const ModelSelector = ({ value, onChange, onOpenSettings, serverModel }: 
     if (availableOptions.length > 0) {
       const isCurrentValid = availableOptions.some(opt => opt.value === value);
       if (!isCurrentValid) {
-        // 自动选中第一个
         const first = availableOptions[0];
-        // 这里我们需要反查一下 provider
-        const modelMeta = MODEL_LIST.find(m => m.id === first.value);
-        if (modelMeta) {
-            onChange(first.value, modelMeta.provider);
-        }
+        onChange(first.value, first.provider);
       }
     }
   }, [availableOptions, onChange, value]);
@@ -73,13 +68,14 @@ export const ModelSelector = ({ value, onChange, onOpenSettings, serverModel }: 
   // 4. 空状态处理
   if (availableOptions.length === 0) {
     return (
-      <div 
+      <button
+        type="button"
         onClick={onOpenSettings}
-        className="flex items-center gap-2 text-sm text-amber-600 bg-amber-50 px-3 py-1.5 rounded cursor-pointer hover:bg-amber-100 transition-colors"
+        className="assistant-model-missing"
       >
         <Icon icon={Settings2} size={14} />
-        <span>未配置模型，点击设置</span>
-      </div>
+        <span>配置模型</span>
+      </button>
     );
   }
 
@@ -88,16 +84,13 @@ export const ModelSelector = ({ value, onChange, onOpenSettings, serverModel }: 
       value={value}
       options={availableOptions}
       onChange={(newValue) => {
-         // 当用户改变选择时，我们需要找到这个模型属于哪个 provider
-         const modelMeta = MODEL_LIST.find(m => m.id === newValue);
+         const modelMeta = availableOptions.find(model => model.value === newValue);
          if (modelMeta) {
              onChange(newValue, modelMeta.provider);
          }
       }}
-      // 样式微调，让它看起来像个胶囊
-      variant="borderless" 
-      style={{ width: 200 }}
-      className="truncate hover:bg-gray-50"
+      variant="borderless"
+      className="assistant-model-select"
     />
   );
 };

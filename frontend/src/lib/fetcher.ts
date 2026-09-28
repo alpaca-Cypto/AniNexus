@@ -56,7 +56,6 @@ export async function chatWithBackend({
   const providers = useApiStore.getState().config as Record<string, { apiKey?: string; endpoint?: string }>;
   const config = providers[provider] as { apiKey?: string; endpoint?: string; proxyUrl?: string } | undefined;
   const endpoint = config?.proxyUrl || config?.endpoint || DEFAULT_ENDPOINTS[provider] || '';
-  const token = localStorage.getItem('token');
 
   const response = await fetch("/api/v1/chat", {
     method: "POST",
@@ -64,7 +63,6 @@ export async function chatWithBackend({
       "Content-Type": "application/json",
       "X-Api-Key": config?.apiKey || '',
       "X-Provider-Endpoint": endpoint,
-      ...(token ? { Authorization: `Bearer ${token}` } : {}),
     },
     body: JSON.stringify({ messages, provider, model, temperature, prompt_config, thread_id }),
   });
@@ -107,8 +105,7 @@ export async function chatWithBackend({
 }
 
 export async function fetchChatHistory(threadId: string): Promise<Array<{ role: "user" | "assistant" | "system"; content: string }>> {
-  const token = localStorage.getItem("token");
-  const response = await fetch(`/api/v1/chat/history?thread_id=${encodeURIComponent(threadId)}`, { headers: token ? { Authorization: `Bearer ${token}` } : {} });
+  const response = await fetch(`/api/v1/chat/history?thread_id=${encodeURIComponent(threadId)}`);
   if (!response.ok) return [];
   const data = await response.json() as { messages?: Array<{ role: "user" | "assistant" | "system"; content: string }> };
   return data.messages || [];

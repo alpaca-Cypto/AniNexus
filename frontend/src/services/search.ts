@@ -42,7 +42,7 @@ interface Collection {
 
 interface SearchResult {
   subject: Subject;
-  collection?: Collection;
+  collection?: Collection | null;
   primary_source?: string;
   score_source?: string | null;
   data_updated_at?: string;
@@ -97,7 +97,6 @@ class SearchService {
     } = params;
 
     try {
-      const token = localStorage.getItem('token');
       const query = new URLSearchParams({
         q: keyword,
         limit: String(limit),
@@ -112,7 +111,6 @@ class SearchService {
         {
           method: 'GET',
           headers: {
-            'Authorization': token ? `Bearer ${token}` : '',
             'Content-Type': 'application/json',
           },
         }

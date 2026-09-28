@@ -28,7 +28,7 @@ export const APPLayout = ({
   const isPublicPreview = pathname.startsWith('/preview');
   
   // 判断是否为聊天页面，逻辑覆盖根路径和包含 /chat 的路径
-  const isFullScreenPage = isPublicPreview || pathname === '/' || pathname.startsWith('/subjects/') || pathname === '/assistant' || pathname === '/collections' || pathname === '/Timetable' || pathname === '/Personal';
+  const isFullScreenPage = isPublicPreview || pathname === '/' || pathname.startsWith('/subjects/') || pathname === '/assistant' || pathname === '/collections' || pathname === '/timetable' || pathname === '/updates' || pathname.startsWith('/personal');
 
   // 样式映射表
   const paddingMap: Record<string, string> = {

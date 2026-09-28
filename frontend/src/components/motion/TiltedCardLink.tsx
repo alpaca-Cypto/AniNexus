@@ -12,7 +12,10 @@ const springValues = {
 };
 
 interface TiltedCardLinkProps {
-  children: ReactNode;
+  cover: ReactNode;
+  badge: ReactNode;
+  details: ReactNode;
+  action: ReactNode;
   href: string;
   className?: string;
   style?: CSSProperties;
@@ -22,7 +25,10 @@ interface TiltedCardLinkProps {
 }
 
 export default function TiltedCardLink({
-  children,
+  cover,
+  badge,
+  details,
+  action,
   href,
   className = "",
   style,
@@ -36,7 +42,7 @@ export default function TiltedCardLink({
   const rotateY = useSpring(useMotionValue(0), springValues);
   const scale = useSpring(1, springValues);
 
-  const handlePointerMove = (event: PointerEvent<HTMLAnchorElement>) => {
+  const handlePointerMove = (event: PointerEvent<HTMLDivElement>) => {
     if (event.pointerType !== "mouse" || prefersReducedMotion || !ref.current) return;
 
     const rect = ref.current.getBoundingClientRect();
@@ -46,7 +52,7 @@ export default function TiltedCardLink({
     rotateY.set((pointerX - 0.5) * rotateAmplitude * 2);
   };
 
-  const handlePointerEnter = (event: PointerEvent<HTMLAnchorElement>) => {
+  const handlePointerEnter = (event: PointerEvent<HTMLDivElement>) => {
     if (event.pointerType !== "mouse" || prefersReducedMotion) return;
     scale.set(scaleOnHover);
   };
@@ -58,11 +64,9 @@ export default function TiltedCardLink({
   };
 
   return (
-    <Link
+    <div
       className={className}
-      href={href}
       style={style}
-      onClick={onClick}
       onPointerMove={handlePointerMove}
       onPointerEnter={handlePointerEnter}
       onPointerLeave={handlePointerLeave}
@@ -73,8 +77,17 @@ export default function TiltedCardLink({
         className="search-portal__card-inner"
         style={{ rotateX, rotateY, scale }}
       >
-        {children}
+        <div className="search-portal__cover">
+          <Link className="search-portal__cover-link" href={href} onClick={onClick}>
+            {cover}
+          </Link>
+          <span>{badge}</span>
+          {action}
+        </div>
+        <Link className="search-portal__card-copy" href={href} onClick={onClick}>
+          {details}
+        </Link>
       </motion.div>
-    </Link>
+    </div>
   );
 }

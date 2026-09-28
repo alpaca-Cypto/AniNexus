@@ -1,4 +1,4 @@
-# OtakuNeko 前端文档
+# AniNexus 前端文档
 
 ## 目录
 - [概述](#概述)
@@ -17,7 +17,7 @@
 
 ## 概述
 
-OtakuNeko 是一个基于 Next.js 16.1.0 (Turbopack)、React 和 TypeScript 构建的 AI 驱动动漫仪表板。该应用为用户提供了一个综合平台,用于管理动漫收藏、参与 AI 驱动的对话,以及与 Bangumi 和豆瓣等外部服务同步数据。
+AniNexus 是一个基于 Next.js 16.1.0 (Turbopack)、React 和 TypeScript 构建的 AI 驱动动漫仪表板。该应用为用户提供了一个综合平台,用于管理动漫收藏、参与 AI 驱动的对话,以及与 Bangumi 和豆瓣等外部服务同步数据。
 
 ### 核心功能
 - **AI 驱动的聊天**: 具有打字效果和消息管理的交互式聊天界面
@@ -125,7 +125,7 @@ frontend/src/
 
 ### 组件架构原则
 
-OtakuNeko 前端采用模块化、可重用的组件架构设计。所有组件遵循以下核心原则：
+AniNexus 前端采用模块化、可重用的组件架构设计。所有组件遵循以下核心原则：
 
 1. **单一职责**: 每个组件只负责一个明确的功能
 2. **可组合性**: 组件设计为可组合的构建块
@@ -769,7 +769,7 @@ describe('Button', () => {
 
 ### 布局组件
 
-#### 根布局 ([`layout.tsx`](file:///e:/HACCI/Documents/tools/OtakuNeko/frontend/src/app/layout.tsx))
+#### 根布局 ([`layout.tsx`](src/app/layout.tsx))
 
 根布局定义了应用结构和提供者层次结构。它负责:
 
@@ -793,7 +793,7 @@ describe('Button', () => {
 
 **关键设计决策**: 提供者顺序至关重要。`SettingsProvider` 必须是最外层的,因为它被 `useSync` 使用,而 `useSync` 在 `Header` 组件中被调用。`ChatProvider` 必须包装 `Header`,因为 Header 使用 `useChatContext`。
 
-#### 侧边栏 ([`Sidebar.tsx`](file:///e:/HACCI/Documents/tools/OtakuNeko/frontend/src/components/layout/Sidebar.tsx))
+#### 侧边栏 ([`Sidebar.tsx`](src/components/layout/Sidebar.tsx))
 
 一个持久的导航组件,提供对不同应用部分的访问:
 
@@ -813,7 +813,7 @@ describe('Button', () => {
 ]
 ```
 
-#### 头部 ([`Header.tsx`](file:///e:/HACCI/Documents/tools/OtakuNeko/frontend/src/components/layout/Header/Header.tsx))
+#### 头部 ([`Header.tsx`](src/components/layout/Header/Header.tsx))
 
 一个综合头部组件,提供:
 
@@ -854,7 +854,7 @@ const {
 
 ### 页面组件
 
-#### 首页 ([`page.tsx`](file:///e:/HACCI/Documents/tools/OtakuNeko/frontend/src/app/page.tsx))
+#### 首页 ([`page.tsx`](src/app/page.tsx))
 
 主要的聊天界面页面,具有以下功能:
 
@@ -889,7 +889,7 @@ interface Message {
 - 无已同步主题: `EmptyState` 组件
 - 有已同步主题: 带有消息和输入的聊天界面
 
-#### 收藏页面 ([`page.tsx`](file:///e:/HACCI/Documents/tools/OtakuNeko/frontend/src/app/collections/page.tsx))
+#### 收藏页面 ([`page.tsx`](src/app/collections/page.tsx))
 
 一个综合的基于网格的收藏管理页面:
 
@@ -951,7 +951,7 @@ const filteredItems = useMemo(() => {
 
 ### 聊天组件
 
-#### 消息气泡 ([`MessageBubble.tsx`](file:///e:/HACCI/Documents/tools/OtakuNeko/frontend/src/components/chat/MessageBubble.tsx))
+#### 消息气泡 ([`MessageBubble.tsx`](src/components/chat/MessageBubble.tsx))
 
 显示聊天消息,支持:
 
@@ -990,7 +990,7 @@ const parseContext = (text: string): { context: ContextData | null; cleanedConte
 - 助手消息: 浅灰色背景(`bg-bg-bubble-assistant`)
 - 错误消息: 带边框的红色背景
 
-#### 聊天输入 ([`ChatInput.tsx`](file:///e:/HACCI/Documents/tools/OtakuNeko/frontend/src/components/chat/ChatInput.tsx))
+#### 聊天输入 ([`ChatInput.tsx`](src/components/chat/ChatInput.tsx))
 
 用于发送消息的输入组件,具有:
 
@@ -1001,7 +1001,7 @@ const parseContext = (text: string): { context: ContextData | null; cleanedConte
 - 字符计数显示
 - 无障碍属性
 
-#### 空状态 ([`EmptyState.tsx`](file:///e:/HACCI/Documents/tools/OtakuNeko/frontend/src/components/chat/EmptyState.tsx))
+#### 空状态 ([`EmptyState.tsx`](src/components/chat/EmptyState.tsx))
 
 当没有收藏同步时显示:
 
@@ -1015,22 +1015,22 @@ const parseContext = (text: string): { context: ContextData | null; cleanedConte
 `components/ui/` 目录包含使用 Tailwind CSS 和主题变量构建的可重用 UI 组件:
 
 **可用组件**:
-- [`Button.tsx`](file:///e:/HACCI/Documents/tools/OtakuNeko/frontend/src/components/ui/Button.tsx): 带变体的按钮(default、outline、ghost)
-- [`Input.tsx`](file:///e:/HACCI/Documents/tools/OtakuNeko/frontend/src/components/ui/Input.tsx): 带图标支持的文本输入
-- [`Card.tsx`](file:///e:/HACCI/Documents/tools/OtakuNeko/frontend/src/components/ui/Card.tsx): 带阴影的卡片容器
-- [`Badge.tsx`](file:///e:/HACCI/Documents/tools/OtakuNeko/frontend/src/components/ui/Badge.tsx): 带变体的徽章组件
-- [`Dialog.tsx`](file:///e:/HACCI/Documents/tools/OtakuNeko/frontend/src/components/ui/Dialog.tsx): 模态对话框组件
-- [`Select.tsx`](file:///e:/HACCI/Documents/tools/OtakuNeko/frontend/src/components/ui/Select.tsx): 下拉选择组件
-- [`Switch.tsx`](file:///e:/HACCI/Documents/tools/OtakuNeko/frontend/src/components/ui/Switch.tsx): 切换开关组件
-- [`Checkbox.tsx`](file:///e:/HACCI/Documents/tools/OtakuNeko/frontend/src/components/ui/Checkbox.tsx): 复选框组件
-- [`Label.tsx`](file:///e:/HACCI/Documents/tools/OtakuNeko/frontend/src/components/ui/Label.tsx): 表单标签组件
-- [`Textarea.tsx`](file:///e:/HACCI/Documents/tools/OtakuNeko/frontend/src/components/ui/Textarea.tsx): 多行文本输入
-- [`Tabs.tsx`](file:///e:/HACCI/Documents/tools/OtakuNeko/frontend/src/components/ui/Tabs.tsx): 选项卡导航组件
-- [`Toast.tsx`](file:///e:/HACCI/Documents/tools/OtakuNeko/frontend/src/components/ui/Toast.tsx): Toast 通知组件
-- [`ThemeSwitcher.tsx`](file:///e:/HACCI/Documents/tools/OtakuNeko/frontend/src/components/ui/ThemeSwitcher.tsx): 主题选择组件
-- [`PosterCard.tsx`](file:///e:/HACCI/Documents/tools/OtakuNeko/frontend/src/components/ui/PosterCard.tsx): 海报显示卡片
-- [`SortDropdown.tsx`](file:///e:/HACCI/Documents/tools/OtakuNeko/frontend/src/components/ui/SortDropdown.tsx): 排序下拉菜单
-- [`NavPillSkeleton.tsx`](file:///e:/HACCI/Documents/tools/OtakuNeko/frontend/src/components/ui/NavPillSkeleton.tsx): 骨架屏加载状态
+- [`Button.tsx`](src/components/ui/Button.tsx): 带变体的按钮(default、outline、ghost)
+- [`Input.tsx`](src/components/ui/Input.tsx): 带图标支持的文本输入
+- [`Card.tsx`](src/components/ui/Card.tsx): 带阴影的卡片容器
+- [`Badge.tsx`](src/components/ui/Badge.tsx): 带变体的徽章组件
+- [`Dialog.tsx`](src/components/ui/Dialog.tsx): 模态对话框组件
+- [`Select.tsx`](src/components/ui/Select.tsx): 下拉选择组件
+- [`Switch.tsx`](src/components/ui/Switch.tsx): 切换开关组件
+- [`Checkbox.tsx`](src/components/ui/Checkbox.tsx): 复选框组件
+- [`Label.tsx`](src/components/ui/Label.tsx): 表单标签组件
+- [`Textarea.tsx`](src/components/ui/Textarea.tsx): 多行文本输入
+- [`Tabs.tsx`](src/components/ui/Tabs.tsx): 选项卡导航组件
+- [`Toast.tsx`](src/components/ui/Toast.tsx): Toast 通知组件
+- [`ThemeSwitcher.tsx`](src/components/ui/ThemeSwitcher.tsx): 主题选择组件
+- [`PosterCard.tsx`](src/components/ui/PosterCard.tsx): 海报显示卡片
+- [`SortDropdown.tsx`](src/components/ui/SortDropdown.tsx): 排序下拉菜单
+- [`NavPillSkeleton.tsx`](src/components/ui/NavPillSkeleton.tsx): 骨架屏加载状态
 
 **设计模式**: 所有 UI 组件使用主题变量而非硬编码颜色以保持一致性:
 ```css
@@ -1043,7 +1043,7 @@ background: var(--primary);
 
 ## API 层
 
-### API 客户端 ([`api.ts`](file:///e:/HACCI/Documents/tools/OtakuNeko/frontend/src/lib/api.ts))
+### API 客户端 ([`api.ts`](src/lib/api.ts))
 
 API 层基于 Axios 构建,具有集中式配置:
 
@@ -1215,7 +1215,7 @@ export interface BangumiUser {
 
 ### API 路由代理
 
-应用包含一个 API 路由代理,位于 [`app/api/collections/route.ts`](file:///e:/HACCI/Documents/tools/OtakuNeko/frontend/src/app/api/collections/route.ts):
+应用包含一个 API 路由代理,位于 [`app/api/collections/route.ts`](src/app/api/collections/route.ts):
 
 **目的**: 代理请求到后端 API 以避免 CORS 问题并添加额外的验证。
 
@@ -1261,7 +1261,7 @@ export async function GET(request: Request) {
 
 用于需要在多个组件之间共享的全局应用状态。
 
-#### SettingsContext ([`SettingsContext.tsx`](file:///e:/HACCI/Documents/tools/OtakuNeko/frontend/src/contexts/SettingsContext.tsx))
+#### SettingsContext ([`SettingsContext.tsx`](src/contexts/SettingsContext.tsx))
 
 管理用户设置和认证状态。
 
@@ -1297,9 +1297,9 @@ export const SettingsProvider = ({ children }: { children: ReactNode }) => {
   useEffect(() => {
     const loadSettings = () => {
       try {
-        const savedSettings = localStorage.getItem('otakuneko_settings');
-        const savedUserInfo = localStorage.getItem('otakuneko_userInfo');
-        const savedIsRemembered = localStorage.getItem('otakuneko_isRemembered');
+        const savedSettings = localStorage.getItem('aninexus_settings');
+        const savedUserInfo = localStorage.getItem('aninexus_userInfo');
+        const savedIsRemembered = localStorage.getItem('aninexus_isRemembered');
 
         if (savedSettings) {
           setSettings(JSON.parse(savedSettings));
@@ -1325,18 +1325,18 @@ export const SettingsProvider = ({ children }: { children: ReactNode }) => {
     setSettings(prev => {
       const updated = { ...prev, ...newSettings };
       if (remember) {
-        localStorage.setItem('otakuneko_settings', JSON.stringify(updated));
+        localStorage.setItem('aninexus_settings', JSON.stringify(updated));
       }
       return updated;
     });
     setIsRemembered(remember);
-    localStorage.setItem('otakuneko_isRemembered', JSON.stringify(remember));
+    localStorage.setItem('aninexus_isRemembered', JSON.stringify(remember));
   };
 
   // 重置会话
   const resetSession = () => {
     setUserInfo(null);
-    localStorage.removeItem('otakuneko_userInfo');
+    localStorage.removeItem('aninexus_userInfo');
     if (sessionTimerRef.current) {
       clearTimeout(sessionTimerRef.current);
       sessionTimerRef.current = null;
@@ -1349,7 +1349,7 @@ export const SettingsProvider = ({ children }: { children: ReactNode }) => {
       const updatedUserInfo = await getUserInfo(username);
       if (updatedUserInfo) {
         setUserInfo(updatedUserInfo);
-        localStorage.setItem('otakuneko_userInfo', JSON.stringify(updatedUserInfo));
+        localStorage.setItem('aninexus_userInfo', JSON.stringify(updatedUserInfo));
       }
     } catch (error) {
       console.error('Failed to refresh user info:', error);
@@ -1374,7 +1374,7 @@ export const SettingsProvider = ({ children }: { children: ReactNode }) => {
 };
 ```
 
-#### ChatContext ([`ChatContext.tsx`](file:///e:/HACCI/Documents/tools/OtakuNeko/frontend/src/contexts/ChatContext.tsx))
+#### ChatContext ([`ChatContext.tsx`](src/contexts/ChatContext.tsx))
 
 管理聊天相关的状态。
 
@@ -1398,7 +1398,7 @@ interface ChatContextType {
 - 参考项存储(用于上下文)
 - 消息清除
 
-#### HeaderContext ([`HeaderContext.tsx`](file:///e:/HACCI/Documents/tools/OtakuNeko/frontend/src/contexts/HeaderContext.tsx))
+#### HeaderContext ([`HeaderContext.tsx`](src/contexts/HeaderContext.tsx))
 
 管理 Header 组件的状态,确保在页面转换间保持持久。
 
@@ -1433,7 +1433,7 @@ interface HeaderContextType {
 
 用于复杂状态管理,特别是同步功能。
 
-#### SyncStore ([`syncStore.ts`](file:///e:/HACCI/Documents/tools/OtakuNeko/frontend/src/lib/syncStore.ts))
+#### SyncStore ([`syncStore.ts`](src/lib/syncStore.ts))
 
 使用 Zustand 管理同步状态和收藏计数。
 
@@ -1541,7 +1541,7 @@ export const useSyncStore = create<SyncState>((set, get) => ({
 
 ### 主题变量
 
-应用使用 CSS 自定义属性实现主题系统,定义在 [`globals.css`](file:///e:/HACCI/Documents/tools/OtakuNeko/frontend/src/app/globals.css) 中。
+应用使用 CSS 自定义属性实现主题系统,定义在 [`globals.css`](src/app/globals.css) 中。
 
 **主题结构**:
 ```css
@@ -1696,7 +1696,7 @@ transition-transform duration-200
 
 ### SettingsProvider
 
-**位置**: [`contexts/SettingsContext.tsx`](file:///e:/HACCI/Documents/tools/OtakuNeko/frontend/src/contexts/SettingsContext.tsx)
+**位置**: [`contexts/SettingsContext.tsx`](src/contexts/SettingsContext.tsx)
 
 **职责**:
 - 管理用户设置
@@ -1717,7 +1717,7 @@ resetSession();
 
 ### ToastProvider
 
-**位置**: [`contexts/ToastContext.tsx`](file:///e:/HACCI/Documents/tools/OtakuNeko/frontend/src/contexts/ToastContext.tsx)
+**位置**: [`contexts/ToastContext.tsx`](src/contexts/ToastContext.tsx)
 
 **职责**:
 - 管理 Toast 通知
@@ -1745,7 +1745,7 @@ toast({
 
 ### ChatProvider
 
-**位置**: [`contexts/ChatContext.tsx`](file:///e:/HACCI/Documents/tools/OtakuNeko/frontend/src/contexts/ChatContext.tsx)
+**位置**: [`contexts/ChatContext.tsx`](src/contexts/ChatContext.tsx)
 
 **职责**:
 - 管理聊天消息
@@ -1772,7 +1772,7 @@ setReferenceItems([subject1, subject2]);
 
 ### HeaderProvider
 
-**位置**: [`contexts/HeaderContext.tsx`](file:///e:/HACCI/Documents/tools/OtakuNeko/frontend/src/contexts/HeaderContext.tsx)
+**位置**: [`contexts/HeaderContext.tsx`](src/contexts/HeaderContext.tsx)
 
 **职责**:
 - 管理 Header 状态
@@ -1805,7 +1805,7 @@ clearSearch();
 
 ### useDebounce
 
-**位置**: [`hooks/useDebounce.ts`](file:///e:/HACCI/Documents/tools/OtakuNeko/frontend/src/hooks/useDebounce.ts)
+**位置**: [`hooks/useDebounce.ts`](src/hooks/useDebounce.ts)
 
 **用途**: 防抖函数调用,减少频繁更新。
 
@@ -1850,7 +1850,7 @@ export function useDebounce<T>(value: T, delay: number): T {
 
 ### useSync
 
-**位置**: [`hooks/useSync.ts`](file:///e:/HACCI/Documents/tools/OtakuNeko/frontend/src/hooks/useSync.ts)
+**位置**: [`hooks/useSync.ts`](src/hooks/useSync.ts)
 
 **用途**: 封装同步功能,提供简化的同步操作接口。
 
@@ -2361,7 +2361,7 @@ export function filterItems(
 
 3. **维护 README 文件**:
 ```markdown
-# OtakuNeko Frontend
+# AniNexus Frontend
 
 ## Installation
 npm install
@@ -2380,7 +2380,7 @@ npm test
 
 ## 总结
 
-OtakuNeko 前端是一个功能丰富、架构良好的应用,展示了现代 React 和 Next.js 开发的最佳实践。通过使用 TypeScript、Context API、Zustand、Tailwind CSS 和其他工具,应用提供了类型安全、高性能和可维护的代码库。
+AniNexus 前端是一个功能丰富、架构良好的应用,展示了现代 React 和 Next.js 开发的最佳实践。通过使用 TypeScript、Context API、Zustand、Tailwind CSS 和其他工具,应用提供了类型安全、高性能和可维护的代码库。
 
 关键特性包括:
 - 响应式设计和移动优先方法
@@ -2390,4 +2390,4 @@ OtakuNeko 前端是一个功能丰富、架构良好的应用,展示了现代 Re
 - 强大的 API 集成
 - 优秀的用户体验
 
-通过遵循本文档中概述的设计模式和最佳实践,开发者可以有效地理解和扩展 OtakuNeko 前端代码库。
+通过遵循本文档中概述的设计模式和最佳实践,开发者可以有效地理解和扩展 AniNexus 前端代码库。

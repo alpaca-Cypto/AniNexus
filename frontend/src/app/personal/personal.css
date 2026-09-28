@@ -1,0 +1,22 @@
+.personal-overview{height:100%;overflow-y:auto;background:var(--nexus-bg);color:var(--nexus-text)}
+.personal-overview__inner{width:min(920px,100%);margin:0 auto;padding:clamp(24px,5vw,64px) clamp(18px,4vw,48px) 96px}
+.personal-overview__heading{margin-bottom:38px}
+.personal-overview__eyebrow{margin:0 0 10px;color:var(--nexus-primary-dark);font-size:13px;font-weight:700}
+.personal-overview h1{margin:0;font-size:clamp(26px,3vw,36px);line-height:1.25;text-wrap:balance}
+.personal-overview__heading>p:last-child{margin:14px 0 0;color:var(--nexus-muted);line-height:1.6}
+.personal-overview__summary{display:flex;align-items:center;justify-content:space-between;gap:24px;padding:24px 0;border-top:1px solid var(--nexus-line);border-bottom:1px solid var(--nexus-line)}
+.personal-overview__summary h2{margin:0 0 8px;font-size:19px}
+.personal-overview__summary p{margin:0;color:var(--nexus-muted);line-height:1.5}
+.personal-overview__summary a,.personal-overview__summary button{min-height:44px;padding:0 17px;display:inline-flex;align-items:center;justify-content:center;gap:8px;flex:none;color:white;border:0;border-radius:999px;background:var(--nexus-primary);font:inherit;font-size:14px;font-weight:700;text-decoration:none;cursor:pointer}
+.personal-overview__summary a:hover,.personal-overview__summary button:hover{background:var(--nexus-primary-dark)}
+.personal-overview__links{display:grid;gap:10px;margin-top:28px}
+.personal-overview__links a{min-height:78px;padding:16px 20px;display:flex;align-items:center;gap:18px;color:var(--nexus-text);border:1px solid var(--nexus-line);border-radius:16px;background:var(--nexus-surface);text-decoration:none;transition:border-color .2s ease,background .2s ease}
+.personal-overview__links a:hover{border-color:var(--nexus-primary);background:var(--nexus-primary-soft)}
+.personal-overview__links a>svg:first-child{flex:none;color:var(--nexus-primary-dark)}
+.personal-overview__links a>svg:last-child{flex:none;margin-left:auto;color:var(--nexus-muted)}
+.personal-overview__links span{min-width:0;display:flex;flex-direction:column;gap:4px}
+.personal-overview__links strong{font-size:16px}
+.personal-overview__links small{color:var(--nexus-muted);font-size:13px;line-height:1.4}
+.personal-overview a:focus-visible,.personal-overview button:focus-visible{outline:2px solid var(--nexus-primary);outline-offset:3px}
+@media(max-width:620px){.personal-overview__inner{padding-bottom:112px}.personal-overview__summary{align-items:flex-start;flex-direction:column}.personal-overview__summary a,.personal-overview__summary button{width:100%}}
+@media(prefers-reduced-motion:reduce){.personal-overview__links a{transition:none}}

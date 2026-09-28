@@ -1,8 +1,9 @@
-import React, { useState } from 'react';
-import Image from 'next/image';
+import React from 'react';
 import { ActionIcon, Tooltip } from '@lobehub/ui';
 import { X, Tv, Film, Book, Clock } from 'lucide-react';
 import { useAppTheme } from '@/components/providers/LobeProvider';
+import CoverImage from '@/components/media/CoverImage';
+import { getSubjectCover } from '@/lib/coverImage';
 import { type BangumiItem, WatchType } from '@/services/bangumiService';
 
 // 样式配置表 (Light/Dark 分离，物理隔离)
@@ -54,13 +55,7 @@ const TimelineMediaCardInner = ({ data, category, currentHeight, onOpenDetail, o
   // --- 数据清洗 (逻辑封装在内部) ---
   const subject = data.subject;
   const title = subject.name_cn || subject.name;
-  const rawCover = subject.images?.large || subject.images?.common || subject.image;
-  // 遇到豆瓣图片，使用本地代理接口
-  const cover = rawCover?.includes('doubanio.com')
-    ? `/api/proxy-image?url=${encodeURIComponent(rawCover)}`
-    : rawCover;
-  const [coverFailed, setCoverFailed] = useState(false);
-  const showCover = Boolean(cover) && !coverFailed;
+  const cover = getSubjectCover(subject);
   const eps = subject.eps || 'N/A';
   
   // 计算分类样式
@@ -74,8 +69,7 @@ const TimelineMediaCardInner = ({ data, category, currentHeight, onOpenDetail, o
     backdrop-blur-md
     ${noBorder || transparent ? 'border-none' : 'border'}
     ${transparent ? 'shadow-none' : 'shadow-sm hover:shadow-md'}
-    rounded-xl
-    overflow-hidden
+    ${isPanel ? 'rounded-none overflow-visible' : 'rounded-xl overflow-hidden'}
     transition-all duration-200
   `;
 
@@ -121,22 +115,14 @@ const TimelineMediaCardInner = ({ data, category, currentHeight, onOpenDetail, o
       return (
         <div className="relative w-full h-full overflow-hidden group/spine">
           {/* A. 封面作为全量背景，撑满不留白 */}
-          {showCover && cover ? (
-            <Image
-              src={cover}
-              alt={title}
-              fill
-              sizes="(max-width: 900px) 14vw, 160px"
-              unoptimized={cover.includes('lain.bgm.tv')}
-              referrerPolicy="no-referrer"
-              onError={() => setCoverFailed(true)}
-              className="absolute inset-0 w-full h-full object-cover transition-transform duration-500 group-hover/spine:scale-110"
-            />
-          ) : (
-            <div className={`absolute inset-0 flex items-center justify-center ${isDarkMode ? 'bg-gray-800' : 'bg-gray-200'}`}>
-              {getCategoryIcon()}
-            </div>
-          )}
+          <CoverImage
+            src={cover}
+            alt={title}
+            fill
+            sizes="(max-width: 900px) 14vw, 160px"
+            className="absolute inset-0 w-full h-full object-cover transition-transform duration-500 group-hover/spine:scale-110"
+            fallback={<div className={`absolute inset-0 flex items-center justify-center ${isDarkMode ? 'bg-gray-800' : 'bg-gray-200'}`}>{getCategoryIcon()}</div>}
+          />
 
           {/* B. 压黑背景遮罩，确保无论什么封面，白色文字都能看清 */}
           <div className="absolute inset-0 bg-black/40 group-hover/spine:bg-black/50 transition-colors" />
@@ -200,23 +186,15 @@ const TimelineMediaCardInner = ({ data, category, currentHeight, onOpenDetail, o
     return (
       <div className="flex flex-row items-center h-full w-full overflow-hidden">
         {/* 封面：固定为 3:4 比例，靠左显示 */}
-        <div className="h-full aspect-[3/4] flex-shrink-0 relative">
-          {showCover && cover ? (
-            <Image
-              src={cover}
-              alt={title}
-              fill
-              sizes="96px"
-              unoptimized={cover.includes('lain.bgm.tv')}
-              referrerPolicy="no-referrer"
-              onError={() => setCoverFailed(true)}
-              className="w-full h-full object-cover"
-            />
-          ) : (
-            <div className={`w-full h-full flex items-center justify-center ${isDarkMode ? 'bg-gray-800' : 'bg-gray-100'}`}>
-              {getCategoryIcon()}
-            </div>
-          )}
+        <div className="relative h-full aspect-[3/4] flex-shrink-0 overflow-hidden rounded-[12px]">
+          <CoverImage
+            src={cover}
+            alt={title}
+            fill
+            sizes="96px"
+            className="w-full h-full object-cover"
+            fallback={<div className={`w-full h-full flex items-center justify-center ${isDarkMode ? 'bg-gray-800' : 'bg-gray-100'}`}>{getCategoryIcon()}</div>}
+          />
         </div>
 
         {/* 文字区域：横向正常显示，内部自动截断 */}
@@ -237,8 +215,8 @@ const TimelineMediaCardInner = ({ data, category, currentHeight, onOpenDetail, o
   return (
     <Tooltip title={tooltipContent}>
       <div 
-        className={`group flex flex-row overflow-hidden cursor-pointer
-                    transition-all duration-300 group-hover:shadow-md z-10 rounded-lg
+        className={`group flex flex-row cursor-pointer
+                    transition-all duration-300 group-hover:shadow-md z-10
                     ${themeClass}`}
         style={{ width: sizeConfig.width, height: currentHeight }}
         onClick={() => onOpenDetail?.(data)}

@@ -101,9 +101,7 @@ const LoginModal = ({ isOpen, onClose, onLoginSuccess }: LoginModalProps) => {
         sign: sign || undefined,
       };
 
-      const data = await authService.login(loginData);
-
-      localStorage.setItem('token', data.access_token);
+      await authService.login(loginData);
 
       setLoading(false);
       onClose();

@@ -1,7 +1,8 @@
 import { Tag, ActionIcon, Tooltip } from '@lobehub/ui';
-import Image from 'next/image';
 import { BellRing, Plus, Tv, Clock, Film, Book, X } from 'lucide-react';
 import { useAppTheme } from '@/components/providers/LobeProvider';
+import CoverImage from '@/components/media/CoverImage';
+import { getSubjectCover } from '@/lib/coverImage';
 import type { SearchResult } from '@/services/search';
 import BilibiliIcon from './BilibiliIcon';
 
@@ -48,11 +49,7 @@ export const MediaCard = ({ data, category, variant = 'standard', onOpenDetail, 
   // --- 数据清洗 (逻辑封装在内部) ---
   const subject = data.subject;
   const title = subject.name_cn || subject.name;
-  const rawCover = subject.images?.large || subject.images?.common || subject.image;
-  // 遇到豆瓣图片，使用本地代理接口
-  const cover = rawCover?.includes('doubanio.com')
-    ? `/api/proxy-image?url=${encodeURIComponent(rawCover)}`
-    : rawCover;
+  const cover = getSubjectCover(subject);
   const score = subject.rating?.score || subject.score;
   const eps = subject.eps || 'N/A';
   const tags = (subject.tags || []).slice(0, variant === 'compact' ? 1 : 3).map((tag) => tag.name);
@@ -68,7 +65,7 @@ export const MediaCard = ({ data, category, variant = 'standard', onOpenDetail, 
     backdrop-blur-md
     border
     shadow-sm hover:shadow-md
-    rounded-xl
+    ${variant === 'large' ? 'rounded-[27px]' : 'rounded-xl'}
     overflow-hidden
     transition-all duration-200
   `;
@@ -162,20 +159,14 @@ export const MediaCard = ({ data, category, variant = 'standard', onOpenDetail, 
             <div className="flex items-center justify-between gap-2 h-full pl-1">
               <div className="flex items-center gap-2">
                 <div className={`w-8 h-8 flex-shrink-0 relative overflow-hidden rounded-full ${isDarkMode ? 'bg-gray-700' : 'bg-gray-100'}`}>
-                  {cover ? (
-                    <Image
-                      src={cover}
-                      alt={title}
-                      fill
-                      sizes="32px"
-                      referrerPolicy="no-referrer"
-                      className="w-full h-full object-cover"
-                    />
-                  ) : (
-                    <div className={`w-full h-full flex items-center justify-center ${isDarkMode ? 'text-gray-400' : 'text-gray-500'}`}>
-                      {getCategoryIcon()}
-                    </div>
-                  )}
+                  <CoverImage
+                    src={cover}
+                    alt={title}
+                    fill
+                    sizes="32px"
+                    className="w-full h-full object-cover"
+                    fallback={<div className={`w-full h-full flex items-center justify-center ${isDarkMode ? 'text-gray-400' : 'text-gray-500'}`}>{getCategoryIcon()}</div>}
+                  />
                 </div>
                 <span className={`text-sm ${isDarkMode ? 'text-gray-200' : 'text-gray-900'} truncate`}>
                   {title || '无标题'}
@@ -205,20 +196,14 @@ export const MediaCard = ({ data, category, variant = 'standard', onOpenDetail, 
             <div className="flex flex-row items-center h-full overflow-hidden">
               {/* 左侧封面 - 3:4 比例 */}
               <div className={`w-12 aspect-[3/4] flex-none relative overflow-hidden ${isDarkMode ? 'bg-gray-700' : 'bg-gray-100'}`}>
-                {cover ? (
-                  <Image
-                    src={cover}
-                    alt={title}
-                    fill
-                    sizes="48px"
-                    referrerPolicy="no-referrer"
-                    className="w-full h-full object-cover transition-transform duration-500 hover:scale-105"
-                  />
-                ) : (
-                  <div className={`w-full h-full flex items-center justify-center ${isDarkMode ? 'text-gray-400' : 'text-gray-500'}`}>
-                    {getCategoryIcon()}
-                  </div>
-                )}
+                <CoverImage
+                  src={cover}
+                  alt={title}
+                  fill
+                  sizes="48px"
+                  className="w-full h-full object-cover transition-transform duration-500 hover:scale-105"
+                  fallback={<div className={`w-full h-full flex items-center justify-center ${isDarkMode ? 'text-gray-400' : 'text-gray-500'}`}>{getCategoryIcon()}</div>}
+                />
               </div>
 
               {/* 右侧内容 */}
@@ -256,20 +241,14 @@ export const MediaCard = ({ data, category, variant = 'standard', onOpenDetail, 
             <div className="flex items-center justify-between gap-2 h-full pl-2">
               <div className="flex items-center gap-2">
                 <div className={`w-8 h-8 flex-shrink-0 relative overflow-hidden rounded-full ${isDarkMode ? 'bg-gray-700' : 'bg-gray-100'}`}>
-                  {cover ? (
-                    <Image
-                      src={cover}
-                      alt={title}
-                      fill
-                      sizes="32px"
-                      referrerPolicy="no-referrer"
-                      className="w-full h-full object-cover"
-                    />
-                  ) : (
-                    <div className={`w-full h-full flex items-center justify-center ${isDarkMode ? 'text-gray-400' : 'text-gray-500'}`}>
-                      {getCategoryIcon()}
-                    </div>
-                  )}
+                  <CoverImage
+                    src={cover}
+                    alt={title}
+                    fill
+                    sizes="32px"
+                    className="w-full h-full object-cover"
+                    fallback={<div className={`w-full h-full flex items-center justify-center ${isDarkMode ? 'text-gray-400' : 'text-gray-500'}`}>{getCategoryIcon()}</div>}
+                  />
                 </div>
                 <span className={`text-sm ${isDarkMode ? 'text-gray-200' : 'text-gray-900'} truncate`}>
                   {title || '无标题'}
@@ -321,19 +300,15 @@ export const MediaCard = ({ data, category, variant = 'standard', onOpenDetail, 
       onClick={() => onOpenDetail?.(data)}
     >
       {/* 封面区域 */}
-      <div className="aspect-[2/3] w-full relative overflow-hidden">
-        {cover ? (
-          <Image
-            src={cover}
-            alt={title}
-            fill
-            sizes="(max-width: 760px) 46vw, 180px"
-            referrerPolicy="no-referrer"
-            className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
-          />
-        ) : (
-          <div className={`w-full h-full flex items-center justify-center ${isDarkMode ? 'text-gray-400' : 'text-gray-500'}`}>No Image</div>
-        )}
+      <div className={`aspect-[2/3] w-full relative overflow-hidden ${variant === 'large' ? 'rounded-[27px]' : ''}`}>
+        <CoverImage
+          src={cover}
+          alt={title}
+          fill
+          sizes="(max-width: 760px) 46vw, 180px"
+          className="w-full h-full object-cover transition-transform duration-500 group-hover:scale-105"
+          fallback={<div className={`w-full h-full flex items-center justify-center ${isDarkMode ? 'text-gray-400' : 'text-gray-500'}`}>暂无封面</div>}
+        />
         
         {/* 评分角标 */}
         {score && (

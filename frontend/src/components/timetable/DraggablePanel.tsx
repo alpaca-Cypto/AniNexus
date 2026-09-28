@@ -1,277 +1,192 @@
-import React, { useState, useMemo } from 'react';
-import { DraggablePanel, Flexbox, Segmented, Icon } from '@lobehub/ui';
-import { Typography, Dropdown, Tooltip } from 'antd';
-import { Filter, LayoutGrid, Tv, Book, Gamepad2, Film } from 'lucide-react';
+import React, { useEffect, useMemo, useState } from 'react';
+import { DraggablePanel, Segmented } from '@lobehub/ui';
+import { Dropdown } from 'antd';
+import { ChevronDown, Filter, LibraryBig, RotateCcw } from 'lucide-react';
 import TimelineMediaCard from './TimelineMediaCard';
 import DraggableItemWrapper from './DraggableItemWrapper';
 import SubjectModal from '../Modal/SubjectModal';
 import { BangumiItem } from '@/services/bangumiService';
-import { DEMO_SCHEDULES } from '@/data/demoContent';
 
-const { Text } = Typography;
+const CATEGORY_OPTIONS = [
+  { label: '全部', type: undefined, value: 'all' },
+  { label: '动画', type: 2, value: 'anime' },
+  { label: '书籍', type: 1, value: 'book' },
+  { label: '游戏', type: 4, value: 'game' },
+  { label: '影视', type: 6, value: 'movie' },
+] as const;
 
-// 分类映射
-const CATEGORY_MAP = {
-  all: '全部',
-  anime: '动画',
-  book: '书籍',
-  game: '游戏',
-  movie: '三次元',
-};
+const STATUS_OPTIONS = [
+  { label: '全部状态', status: undefined, value: 'all' },
+  { label: '想看', status: 1, value: 'wish' },
+  { label: '在看', status: 3, value: 'watching' },
+  { label: '看过', status: 2, value: 'watched' },
+  { label: '搁置', status: 4, value: 'on_hold' },
+] as const;
 
-// 分类到后端参数的映射
-const CATEGORY_TO_TYPE_MAP = {
-  anime: 2, // 动画
-  book: 1, // 书籍
-  game: 4, // 游戏
-  movie: 6, // 三次元
-};
-
-const STATUS_MAP: Record<string, string> = {
-  all: '全部状态',
-  wish: '想看',
-  watching: '在看',
-  watched: '看过',
-  on_hold: '搁置',
-};
-
-// 状态到后端参数的映射
-const STATUS_TO_STATUS_MAP = {
-  wish: 1, // 想看
-  watching: 3, // 在看
-  watched: 2, // 看过
-  on_hold: 4, // 搁置
-};
+type CategoryValue = (typeof CATEGORY_OPTIONS)[number]['value'];
+type StatusValue = (typeof STATUS_OPTIONS)[number]['value'];
 
 interface CollectionPanelProps {
   searchQuery?: string;
   collections?: BangumiItem[];
+  openSignal?: number;
 }
 
 export const CollectionPanel = ({
   searchQuery = '',
-  collections = DEMO_SCHEDULES,
+  collections = [],
+  openSignal = 0,
 }: CollectionPanelProps) => {
   const [expand, setExpand] = useState(true);
-  
-  // --- 2. 核心状态管理 ---
-  const [activeType, setActiveType] = useState('all'); 
-  const [activeStatus, setActiveStatus] = useState('all');
-  const [isSubjectModalOpen, setIsSubjectModalOpen] = useState(false);
+  const [isCompact, setIsCompact] = useState(false);
+  const [activeType, setActiveType] = useState<CategoryValue>('all');
+  const [activeStatus, setActiveStatus] = useState<StatusValue>('all');
   const [selectedSubject, setSelectedSubject] = useState<BangumiItem | null>(null);
 
-  const handleOpenDetail = (item: BangumiItem) => {
-    setSelectedSubject(item);
-    setIsSubjectModalOpen(true);
+  useEffect(() => {
+    const mediaQuery = window.matchMedia('(max-width: 760px)');
+    const updateLayout = () => {
+      setIsCompact(mediaQuery.matches);
+      setExpand(!mediaQuery.matches);
+    };
+
+    updateLayout();
+    mediaQuery.addEventListener('change', updateLayout);
+    return () => mediaQuery.removeEventListener('change', updateLayout);
+  }, []);
+
+  useEffect(() => {
+    if (openSignal === 0) return;
+    const timer = window.setTimeout(() => setExpand(true), 0);
+    return () => window.clearTimeout(timer);
+  }, [openSignal]);
+
+  const activeStatusOption = STATUS_OPTIONS.find(({ value }) => value === activeStatus)
+    ?? STATUS_OPTIONS[0];
+
+  const filteredList = useMemo(() => {
+    const type = CATEGORY_OPTIONS.find(({ value }) => value === activeType)?.type;
+    const status = activeStatusOption.status;
+    const keyword = searchQuery.trim().toLocaleLowerCase();
+
+    return collections.filter((item) =>
+      (type === undefined || item.subject.type === type)
+      && (status === undefined || item.collection?.type === status)
+      && (!keyword || [item.subject.name, item.subject.name_cn || '']
+        .some((value) => value.toLocaleLowerCase().includes(keyword)))
+    );
+  }, [activeStatusOption.status, activeType, collections, searchQuery]);
+
+  const hasActiveFilters = activeType !== 'all' || activeStatus !== 'all';
+  const resetFilters = () => {
+    setActiveType('all');
+    setActiveStatus('all');
   };
 
-  // --- 4. 数据过滤和排序逻辑 ---
-  const filteredList = useMemo(() => {
-    const type = activeType === 'all' ? undefined : CATEGORY_TO_TYPE_MAP[activeType as keyof typeof CATEGORY_TO_TYPE_MAP];
-    const status = activeStatus === 'all' ? undefined : STATUS_TO_STATUS_MAP[activeStatus as keyof typeof STATUS_TO_STATUS_MAP];
-    const keyword = searchQuery.trim().toLocaleLowerCase();
-    return collections.filter((item) =>
-      (type === undefined || item.subject.type === type) &&
-      (status === undefined || item.collection?.type === status) &&
-      (!keyword || [item.subject.name, item.subject.name_cn || ''].some((value) => value.toLocaleLowerCase().includes(keyword)))
-    );
-  }, [activeStatus, activeType, collections, searchQuery]);
-
-
+  const emptyMessage = collections.length === 0
+    ? '收藏会显示在这里'
+    : searchQuery.trim()
+      ? `没有找到“${searchQuery.trim()}”`
+      : '没有符合筛选的收藏';
 
   return (
     <>
       <DraggablePanel
+        className="collection-panel"
+        defaultSize={{ height: '100%', width: 320 }}
         expand={expand}
-        mode="fixed"
+        maxWidth={400}
+        minWidth={280}
+        mode={isCompact ? 'float' : 'fixed'}
         placement="right"
-        style={{
-          display: 'flex',
-          flexDirection: 'column',
-          width: 350,
-          // 增强毛玻璃质感，使用 CSS 变量适配暗黑模式
-          backgroundColor: 'var(--lobe-color-bg-container)',
-          backdropFilter: 'blur(16px)',
-          borderLeft: '1px solid var(--lobe-color-border)',
-          boxShadow: '-4px 0 24px rgba(0, 0, 0, 0.04)',
-        }}
+        showHandleWhenCollapsed
         onExpandChange={setExpand}
       >
-        <Flexbox height="100%" width="100%" style={{ overflow: 'hidden' }}>
-          
-          {/* Header 区域：标题 */}
-          <Flexbox padding="24px 20px 16px" align="center" justify="center">
-            <Text style={{ fontSize: 18, fontWeight: 600, color: 'var(--ant-color-text)', textAlign: 'center' }}>
-              我的收藏
-            </Text>
-          </Flexbox>
+        <div className="collection-panel__content">
+          <header className="collection-panel__header">
+            <div className="collection-panel__heading">
+              <LibraryBig aria-hidden="true" size={18} />
+              <div>
+                <h2>我的收藏</h2>
+                <p>{collections.length > 0 ? `${collections.length} 个条目，可拖入左侧计划` : '从收藏页添加作品后再安排'}</p>
+              </div>
+            </div>
+          </header>
 
-          {/* 筛选区域 */}
-          <Flexbox padding="0 20px 16px" gap={16} align="center" justify="center">
-            <Flexbox horizontal align="center" gap={16}>
-              
-          <Segmented
-            value={activeType}
-            onChange={(value) => setActiveType(value as string)}
-            options={[
-              {
-                value: 'all',
-                label: (
-                  <Tooltip title={CATEGORY_MAP.all}>
-                    <div style={{ 
-                      color: activeType === 'all' ? 'var(--ant-color-primary)' : 'var(--lobe-color-text-tertiary)',
-                      transition: 'color 0.3s'
-                    }}>
-                      <Icon icon={LayoutGrid} />
-                    </div>
-                  </Tooltip>
-                )
-              },
-              {
-                value: 'anime',
-                label: (
-                  <Tooltip title={CATEGORY_MAP.anime}>
-                    <div style={{ 
-                      color: activeType === 'anime' ? 'var(--ant-color-primary)' : 'var(--lobe-color-text-tertiary)',
-                      transition: 'color 0.3s'
-                    }}>
-                      <Icon icon={Tv} />
-                    </div>
-                  </Tooltip>
-                )
-              },
-              {
-                value: 'book',
-                label: (
-                  <Tooltip title={CATEGORY_MAP.book}>
-                    <div style={{ 
-                      color: activeType === 'book' ? 'var(--ant-color-primary)' : 'var(--lobe-color-text-tertiary)',
-                      transition: 'color 0.3s'
-                    }}>
-                      <Icon icon={Book} />
-                    </div>
-                  </Tooltip>
-                )
-              },
-              {
-                value: 'game',
-                label: (
-                  <Tooltip title={CATEGORY_MAP.game}>
-                    <div style={{ 
-                      color: activeType === 'game' ? 'var(--ant-color-primary)' : 'var(--lobe-color-text-tertiary)',
-                      transition: 'color 0.3s'
-                    }}>
-                      <Icon icon={Gamepad2} />
-                    </div>
-                  </Tooltip>
-                )
-              },
-              {
-                value: 'movie',
-                label: (
-                  <Tooltip title={CATEGORY_MAP.movie}>
-                    <div style={{ 
-                      color: activeType === 'movie' ? 'var(--ant-color-primary)' : 'var(--lobe-color-text-tertiary)',
-                      transition: 'color 0.3s'
-                    }}>
-                      <Icon icon={Film} />
-                    </div>
-                  </Tooltip>
-                )
-              }
-            ]}
-            variant='borderless'
-            shadow
-            glass
-          />
-              
-              {/* 使用 Dropdown 隐藏次要筛选条件 */}
-              <Dropdown 
-                menu={{ 
-                  items: Object.entries(STATUS_MAP).map(([key, label]) => ({
-                    key,
-                    label,
-                    onClick: () => setActiveStatus(key)
-                  })),
-                  title: "状态筛选"
-                }} 
-                trigger={['click']}
+          <div className="collection-panel__filters" aria-label="收藏筛选">
+            <div className="collection-panel__category-scroll">
+              <Segmented
+                aria-label="按类型筛选"
+                options={CATEGORY_OPTIONS.map(({ label, value }) => ({ label, value }))}
+                value={activeType}
+                variant="borderless"
+                onChange={(value) => setActiveType(value as CategoryValue)}
+              />
+            </div>
+            <Dropdown
+              menu={{
+                items: STATUS_OPTIONS.map(({ label, value }) => ({ key: value, label })),
+                onClick: ({ key }) => setActiveStatus(key as StatusValue),
+                selectable: true,
+                selectedKeys: [activeStatus],
+              }}
+              trigger={['click']}
+            >
+              <button
+                aria-label={`收藏状态：${activeStatusOption.label}`}
+                className={`collection-panel__status ${activeStatus !== 'all' ? 'is-active' : ''}`}
+                type="button"
               >
-                <button 
-                  style={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    width: '40px',
-                    height: '40px',
-                    borderRadius: '8px',
-                    border: '1px solid var(--lobe-color-border)',
-                    background: 'var(--lobe-color-bg-container)',
-                    color: activeStatus !== 'all' ? 'var(--ant-color-primary)' : 'var(--lobe-color-text-primary)',
-                    cursor: 'pointer',
-                    transition: 'all 0.2s'
-                  }}
-                  title="状态筛选"
-                >
-                  <Filter size={18} />
-                </button>
-              </Dropdown>
-            </Flexbox>
-          </Flexbox>
+                <Filter aria-hidden="true" size={15} />
+                <span>{activeStatusOption.label}</span>
+                <ChevronDown aria-hidden="true" size={14} />
+              </button>
+            </Dropdown>
+          </div>
 
-          {/* 列表区 */}
-          <Flexbox flex={1} padding="0 16px 20px" gap={8} style={{ overflowY: 'auto' }}>
+          <div className="collection-panel__list" aria-live="polite">
             {filteredList.length > 0 ? (
-              // 有数据状态
-              filteredList.map(item => (
-                <Flexbox 
-                  key={`${item.subject.source}-${item.subject.source_id}`} 
-                  style={{ 
-                    cursor: 'pointer',
-                    padding: '12px',
-                    borderRadius: 16,
-                    backgroundColor: 'transparent',
-                    transition: 'all 0.25s cubic-bezier(0.2, 0, 0, 1)',
-                    height: '104px', // 固定高度，包含 padding
-                  }}
-                  // hover 时增加轻微的背景和上浮效果
-                  className="hover:shadow-sm hover:-translate-y-0.5"
-                  onMouseEnter={(e) => {
-                    e.currentTarget.style.backgroundColor = 'var(--lobe-color-bg-overlay)';
-                  }}
-                  onMouseLeave={(e) => {
-                    e.currentTarget.style.backgroundColor = 'transparent';
-                  }}
-                >
-                  <DraggableItemWrapper id={`panel-${item.subject.source}-${item.subject.source_id}`} data={item}>
-                    <TimelineMediaCard 
-                      data={item} 
-                      currentHeight={80} // 使用正常高度卡片，适合显示方形封面
-                      transparent={true} // 开启透明模式
-                      isPanel={true} // 标识在 DraggablePanel 中渲染
-                      onOpenDetail={handleOpenDetail}
-                    />
-                  </DraggableItemWrapper>
-                </Flexbox>
-              ))
+              filteredList.map((item) => {
+                const itemKey = `${item.subject.source}-${item.subject.source_id}`;
+                return (
+                  <div className="collection-panel__item" key={itemKey}>
+                    <DraggableItemWrapper id={`panel-${itemKey}`} data={item}>
+                      <TimelineMediaCard
+                        currentHeight={72}
+                        data={item}
+                        isPanel
+                        transparent
+                        onOpenDetail={setSelectedSubject}
+                      />
+                    </DraggableItemWrapper>
+                  </div>
+                );
+              })
             ) : (
-              // 空数据状态
-              <Flexbox align="center" justify="center" flex={1} style={{ color: 'var(--lobe-color-text-tertiary)' }}>
-                暂无收藏数据
-              </Flexbox>
+              <div className="collection-panel__empty">
+                <LibraryBig aria-hidden="true" size={24} />
+                <strong>{emptyMessage}</strong>
+                <span>
+                  {collections.length === 0
+                    ? '在收藏库添加作品，它们会出现在这里。'
+                    : '调整搜索词或筛选条件后再试。'}
+                </span>
+                {hasActiveFilters && (
+                  <button type="button" onClick={resetFilters}>
+                    <RotateCcw aria-hidden="true" size={14} />
+                    清除筛选
+                  </button>
+                )}
+              </div>
             )}
-          </Flexbox>
-        </Flexbox>
+          </div>
+        </div>
       </DraggablePanel>
 
-      {/* 条目详情模态框 */}
       <SubjectModal
-        isOpen={isSubjectModalOpen}
-        onClose={() => {
-          setIsSubjectModalOpen(false);
-          setSelectedSubject(null);
-        }}
         initialValues={selectedSubject}
+        isOpen={selectedSubject !== null}
+        onClose={() => setSelectedSubject(null)}
       />
     </>
   );

@@ -1,316 +1,175 @@
-import React, { useState } from 'react';
-import Image from 'next/image';
-import { Input, Select, TextArea, Button, Icon } from '@lobehub/ui';
+import { useState } from 'react';
+import { Button, Icon, Input, Select, TextArea } from '@lobehub/ui';
 import { Rate } from 'antd';
-import { ChevronDown, ChevronUp } from 'lucide-react';
-import { useAppTheme } from '@/components/providers/LobeProvider';
-import { FormData } from '../types';
+import { ChevronDown, ChevronUp, ImageOff } from 'lucide-react';
+import CoverImage from '@/components/media/CoverImage';
+import type { FormData } from '../types';
+import styles from './SubjectForm.module.css';
 
 interface SubjectFormProps {
   value: FormData;
   onChange: (value: FormData) => void;
 }
 
-export const SubjectForm: React.FC<SubjectFormProps> = ({ value, onChange }) => {
-  const { isDarkMode } = useAppTheme();
-  const [showSubjectDetails, setShowSubjectDetails] = useState<boolean>(false);
+const subjectTypeOptions = [
+  { label: '书籍 / 小说', value: '1' },
+  { label: '动画', value: '2' },
+  { label: '音乐', value: '3' },
+  { label: '游戏', value: '4' },
+  { label: '三次元', value: '6' },
+];
+
+const collectionTypeOptions = [
+  { label: '想看', value: '1' },
+  { label: '看过', value: '2' },
+  { label: '在看', value: '3' },
+  { label: '搁置', value: '4' },
+  { label: '抛弃', value: '5' },
+];
+
+const subjectTypeLabel = (type: number) =>
+  subjectTypeOptions.find((option) => option.value === String(type))?.label || '类型未知';
+
+export const SubjectForm = ({ value, onChange }: SubjectFormProps) => {
+  const [showSubjectDetails, setShowSubjectDetails] = useState(false);
+  const displayTitle = value.title || value.subject.name_cn || value.subject.name || '未命名条目';
+
+  const updateSubject = (patch: Partial<FormData['subject']>) => {
+    onChange({ ...value, subject: { ...value.subject, ...patch } });
+  };
+
+  const updateTitle = (title: string) => {
+    const titleField = value.subject.name_cn ? 'name_cn' : 'name';
+    onChange({ ...value, title, subject: { ...value.subject, [titleField]: title } });
+  };
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
-      {/* Subject 信息栏 */}
-      <div style={{ 
-        border: `1px solid ${isDarkMode ? '#374151' : '#e5e7eb'}`, 
-        borderRadius: 8, 
-        padding: 12,
-        background: isDarkMode ? '#1f2937' : '#f9fafb'
-      }}>
-        {/* Subject 栏头部 */}
-        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
-          <h4 style={{ margin: 0, fontSize: 14, fontWeight: 'bold', color: isDarkMode ? '#f3f4f6' : '#111827' }}>条目信息</h4>
-          <Button 
-            icon={showSubjectDetails ? <Icon icon={ChevronUp} /> : <Icon icon={ChevronDown} />}
+    <div className={styles.form}>
+      <section className={styles.subjectSection} aria-label="作品资料">
+        <div className={styles.sectionHeading}>
+          <div>
+            <h3>作品资料</h3>
+            <p>资料来自内容库，通常不需要修改。</p>
+          </div>
+          <Button
+            icon={<Icon icon={showSubjectDetails ? ChevronUp : ChevronDown} />}
             size="small"
-            onClick={() => setShowSubjectDetails(!showSubjectDetails)}
+            onClick={() => setShowSubjectDetails((visible) => !visible)}
           >
-            {showSubjectDetails ? '收起' : '展开手动编辑'}
+            {showSubjectDetails ? '收起资料' : '编辑资料'}
           </Button>
         </div>
-        
-        {/* Subject 基本信息 */}
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-          {value.cover && (
-            <div style={{ display: 'flex', alignItems: 'flex-start', gap: 12 }}>
-              <Image
-                src={value.cover} 
-                alt={value.title} 
-                width={80}
-                height={120}
-                unoptimized
-                style={{ width: 80, height: 120, objectFit: 'cover', borderRadius: 4 }}
-              />
-              <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 8 }}>
-                <div>
-                  <span style={{ fontSize: 12, color: isDarkMode ? '#9ca3af' : '#666' }}>条目名称</span>
-                  <Input 
-                    value={value.title} 
-                    onChange={(e) => {
-                      const title = e.target.value;
-                      const titleField = value.subject.name_cn ? 'name_cn' : 'name';
-                      onChange({
-                        ...value,
-                        title,
-                        subject: { ...value.subject, [titleField]: title },
-                      });
-                    }}
-                    disabled={!showSubjectDetails}
-                  />
-                </div>
-                <div style={{ display: 'flex', gap: 8 }}>
-                  <div style={{ flex: 1 }}>
-                    <span style={{ fontSize: 12, color: isDarkMode ? '#9ca3af' : '#666' }}>条目类型</span>
-                    <Select
-                        placeholder="请选择条目类型"
-                        options={[
-                            { label: '书籍/小说', value: '1' },
-                            { label: '动画', value: '2' },
-                            { label: '音乐', value: '3' },
-                            { label: '游戏', value: '4' },
-                            { label: '三次元', value: '6' }
-                        ]}
-                        style={{ width: '100%' }}
-                        value={value.subject?.type?.toString() || ''}
-                        onChange={(value) => onChange({...value, subject: {...(value.subject || {}), type: parseInt(value) || 0}})}
-                        disabled={!showSubjectDetails}
-                    />
-                  </div>
-                  <div style={{ flex: 1 }}>
-                    <span style={{ fontSize: 12, color: isDarkMode ? '#9ca3af' : '#666' }}>评分</span>
-                    <Input 
-                      value={value.subject?.score || ''} 
-                      onChange={(e) => onChange({...value, subject: {...(value.subject || {}), score: parseFloat(e.target.value) || 0}})}
-                      disabled={!showSubjectDetails}
-                    />
-                  </div>
-                </div>
-              </div>
-            </div>
-          )}
-          {!value.cover && (
-            <div>
-              <div>
-                <span style={{ fontSize: 12, color: isDarkMode ? '#9ca3af' : '#666' }}>条目名称</span>
-                <Input 
-                  value={value.title} 
-                  onChange={(e) => {
-                    const title = e.target.value;
-                    const titleField = value.subject.name_cn ? 'name_cn' : 'name';
-                    onChange({
-                      ...value,
-                      title,
-                      subject: { ...value.subject, [titleField]: title },
-                    });
-                  }}
-                  disabled={!showSubjectDetails}
-                />
-              </div>
-              <div style={{ display: 'flex', gap: 8, marginTop: 8 }}>
-                <div style={{ flex: 1 }}>
-                  <span style={{ fontSize: 12, color: isDarkMode ? '#9ca3af' : '#666' }}>条目类型</span>
-                  <Select
-                      placeholder="请选择条目类型"
-                      options={[
-                          { label: '书籍/小说', value: '1' },
-                          { label: '动画', value: '2' },
-                          { label: '音乐', value: '3' },
-                          { label: '游戏', value: '4' },
-                          { label: '三次元', value: '6' }
-                      ]}
-                      style={{ width: '100%' }}
-                      value={value.subject?.type?.toString() || ''}
-                      onChange={(value) => onChange({...value, subject: {...(value.subject || {}), type: parseInt(value) || 0}})}
-                      disabled={!showSubjectDetails}
-                  />
-                </div>
-                <div style={{ flex: 1 }}>
-                  <span style={{ fontSize: 12, color: isDarkMode ? '#9ca3af' : '#666' }}>网站评分</span>
-                  <Input 
-                    value={value.subject?.score || ''} 
-                    onChange={(e) => onChange({...value, subject: {...(value.subject || {}), score: parseFloat(e.target.value) || 0}})}
-                    disabled={!showSubjectDetails}
-                  />
-                </div>
-              </div>
-            </div>
-          )}
-          
-          {/* 展开后的详细信息 */}
-          {showSubjectDetails && (
-            <div style={{ marginTop: 12, paddingTop: 12, borderTop: `1px solid ${isDarkMode ? '#374151' : '#e5e7eb'}` }}>
-              <div>
-                <span style={{ fontSize: 12, color: isDarkMode ? '#9ca3af' : '#666' }}>条目简介</span>
-                <TextArea 
-                  resize={false} 
-                  value={value.subject?.short_summary || ''} 
-                  onChange={(e) => onChange({...value, subject: {...(value.subject || {}), short_summary: e.target.value}})}
-                />
-              </div>
-              <div style={{ marginTop: 8, display: 'flex', gap: 8 }}>
-                <div style={{ flex: 1 }}>
-                  <span style={{ fontSize: 12, color: isDarkMode ? '#9ca3af' : '#666' }}>原始名称</span>
-                  <Input 
-                    value={value.subject?.name || ''} 
-                    onChange={(e) => onChange({...value, subject: {...(value.subject || {}), name: e.target.value}})}
-                  />
-                </div>
-                <div style={{ flex: 1 }}>
-                  <span style={{ fontSize: 12, color: isDarkMode ? '#9ca3af' : '#666' }}>中文名称</span>
-                  <Input 
-                    value={value.subject?.name_cn || ''} 
-                    onChange={(e) => onChange({...value, subject: {...(value.subject || {}), name_cn: e.target.value}})}
-                  />
-                </div>
-              </div>
-              <div style={{ marginTop: 8, display: 'flex', gap: 8 }}>
-                <div style={{ flex: 1 }}>
-                  <span style={{ fontSize: 12, color: isDarkMode ? '#9ca3af' : '#666' }}>发售/放送日期</span>
-                  <Input 
-                    value={value.subject?.date || ''} 
-                    onChange={(e) => onChange({...value, subject: {...(value.subject || {}), date: e.target.value}})}
-                  />
-                </div>
-                <div style={{ flex: 1 }}>
-                  <span style={{ fontSize: 12, color: isDarkMode ? '#9ca3af' : '#666' }}>集数</span>
-                  <Input 
-                    type="number" 
-                    min="0" 
-                    value={value.subject?.eps || ''} 
-                    onChange={(e) => onChange({...value, subject: {...(value.subject || {}), eps: parseInt(e.target.value) || 0}})}
-                  />
-                </div>
-                <div style={{ flex: 1 }}>
-                  <span style={{ fontSize: 12, color: isDarkMode ? '#9ca3af' : '#666' }}>卷数</span>
-                  <Input 
-                    type="number" 
-                    min="0" 
-                    value={value.subject?.volumes || ''} 
-                    onChange={(e) => onChange({...value, subject: {...(value.subject || {}), volumes: parseInt(e.target.value) || 0}})}
-                  />
-                </div>
-              </div>
-              <div style={{ marginTop: 8, display: 'flex', gap: 8 }}>
-                <div style={{ flex: 1 }}>
-                  <span style={{ fontSize: 12, color: isDarkMode ? '#9ca3af' : '#666' }}>来源</span>
-                  <Input 
-                    value={value.subject?.source || ''} 
-                    onChange={(e) => onChange({...value, subject: {...(value.subject || {}), source: e.target.value}})}
-                  />
-                </div>
-              </div>
-              <div style={{ marginTop: 8, display: 'flex', gap: 8 }}>
-                <div style={{ flex: 1 }}>
-                  <span style={{ fontSize: 12, color: isDarkMode ? '#9ca3af' : '#666' }}>源ID</span>
-                  <Input 
-                    value={value.subject?.source_id || value.subject?.id || ''}
-                    onChange={(e) => onChange({...value, subject: {...(value.subject || {}), source_id: e.target.value}})}
-                  />
-                </div>
-              </div>
-              <div style={{ marginTop: 8 }}>
-                <span style={{ fontSize: 12, color: isDarkMode ? '#9ca3af' : '#666' }}>封面图 URL</span>
-                <Input 
-                  value={value.cover} 
-                  onChange={(e) => onChange({...value, cover: e.target.value})}
-                />
-              </div>
-            </div>
-          )}
-        </div>
-      </div>
-      
-      {/* Collection 信息栏 */}
-      <div style={{ 
-        border: `1px solid ${isDarkMode ? '#374151' : '#e5e7eb'}`, 
-        borderRadius: 8, 
-        padding: 12,
-        background: isDarkMode ? '#1f2937' : '#f9fafb'
-      }}>
-        <h4 style={{ marginBottom: 12, fontSize: 14, fontWeight: 'bold', color: isDarkMode ? '#f3f4f6' : '#111827' }}>收藏信息</h4>
-        
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
-            <div>
-              <span style={{ fontSize: 12, color: isDarkMode ? '#9ca3af' : '#666' }}>收藏类型</span>
-              <Select
-                  placeholder="请选择收藏类型"
-                  defaultValue="1"
-                  options={[
-                      { label: '想看', value: '1' },
-                      { label: '看过', value: '2' },
-                      { label: '在看', value: '3' },
-                      { label: '搁置', value: '4' },
-                      { label: '抛弃', value: '5' }
-                  ]}
-                  style={{ width: '100%' }}
-                  value={value.collectionType && value.collectionType > 0 ? value.collectionType.toString() : ''}
-                  onChange={(value) => onChange({...value, collectionType: parseInt(value) || 0})}
-              />
-            </div>
-            <div>
-              <span style={{ fontSize: 12, color: isDarkMode ? '#9ca3af' : '#666' }}>用户评分 (0-10)</span>
-              <Rate 
-                  count={10}
-                  value={value.rate || 0}
-                  onChange={(rateValue) => onChange({...value, rate: rateValue})}
-                  allowClear
-                  style={{ marginTop: 8 }}
-                  size="small"
-              />
-            </div>
-          </div>
-          
-          <div>
-            <span style={{ fontSize: 12, color: isDarkMode ? '#9ca3af' : '#666' }}>评论</span>
-            <TextArea 
-                resize={false} 
-                placeholder="请输入评论"
-                value={value.comment || ''}
-                onChange={(e) => onChange({...value, comment: e.target.value})}
+
+        <div className={styles.subjectPreview}>
+          <div className={styles.cover}>
+            <CoverImage
+              src={value.cover}
+              alt={`${displayTitle} 封面`}
+              fill
+              sizes="76px"
+              fallback={<span><ImageOff size={20} /><small>暂无封面</small></span>}
             />
           </div>
-          
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
-            <div>
-              <span style={{ fontSize: 12, color: isDarkMode ? '#9ca3af' : '#666' }}>卷数状态</span>
-              <Input 
-                  type="number" 
-                  min="0" 
-                  placeholder="0" 
-                  value={value.volStatus || ''}
-                  onChange={(e) => onChange({...value, volStatus: parseInt(e.target.value) || 0})}
-              />
+          <div className={styles.subjectCopy}>
+            <strong>{displayTitle}</strong>
+            {value.subject.name && value.subject.name !== displayTitle && <span>{value.subject.name}</span>}
+            <div className={styles.subjectMeta}>
+              <span>{subjectTypeLabel(value.subject.type)}</span>
+              {value.subject.date && <span>{value.subject.date}</span>}
+              {value.subject.score > 0 && <span>站点评分 {value.subject.score}</span>}
             </div>
-            <div>
-              <span style={{ fontSize: 12, color: isDarkMode ? '#9ca3af' : '#666' }}>集数状态</span>
-              <Input 
-                  type="number" 
-                  min="0" 
-                  placeholder="0" 
-                  value={value.epStatus || ''}
-                  onChange={(e) => onChange({...value, epStatus: parseInt(e.target.value) || 0})}
-              />
-            </div>
-          </div>
-          
-          <div>
-            <span style={{ fontSize: 12, color: isDarkMode ? '#9ca3af' : '#666' }}>标签</span>
-            <Input 
-                placeholder="请输入标签，用逗号分隔" 
-                value={value.tags || ''}
-                onChange={(e) => onChange({...value, tags: e.target.value})}
-            />
           </div>
         </div>
-      </div>
+
+        {showSubjectDetails && (
+          <div className={styles.advancedFields}>
+            <label className={styles.fieldWide}>
+              <span>显示名称</span>
+              <Input value={value.title} onChange={(event) => updateTitle(event.target.value)} />
+            </label>
+            <label>
+              <span>作品类型</span>
+              <Select options={subjectTypeOptions} value={String(value.subject.type || '')} onChange={(nextValue) => updateSubject({ type: Number(nextValue) || 0 })} />
+            </label>
+            <label>
+              <span>站点评分</span>
+              <Input type="number" min="0" max="10" step="0.1" value={value.subject.score || ''} onChange={(event) => updateSubject({ score: Number(event.target.value) || 0 })} />
+            </label>
+            <label>
+              <span>原始名称</span>
+              <Input value={value.subject.name} onChange={(event) => updateSubject({ name: event.target.value })} />
+            </label>
+            <label>
+              <span>中文名称</span>
+              <Input value={value.subject.name_cn} onChange={(event) => updateSubject({ name_cn: event.target.value })} />
+            </label>
+            <label>
+              <span>发售 / 放送日期</span>
+              <Input value={value.subject.date} onChange={(event) => updateSubject({ date: event.target.value })} />
+            </label>
+            <label>
+              <span>集数</span>
+              <Input type="number" min="0" value={value.subject.eps || ''} onChange={(event) => updateSubject({ eps: Number(event.target.value) || 0 })} />
+            </label>
+            <label>
+              <span>卷数</span>
+              <Input type="number" min="0" value={value.subject.volumes || ''} onChange={(event) => updateSubject({ volumes: Number(event.target.value) || 0 })} />
+            </label>
+            <label>
+              <span>来源</span>
+              <Input value={value.subject.source} onChange={(event) => updateSubject({ source: event.target.value })} />
+            </label>
+            <label>
+              <span>源 ID</span>
+              <Input value={value.subject.source_id || value.subject.id || ''} onChange={(event) => updateSubject({ source_id: event.target.value })} />
+            </label>
+            <label className={styles.fieldWide}>
+              <span>封面地址</span>
+              <Input value={value.cover || ''} onChange={(event) => onChange({ ...value, cover: event.target.value })} />
+            </label>
+            <label className={styles.fieldWide}>
+              <span>作品简介</span>
+              <TextArea resize={false} rows={4} value={value.subject.short_summary} onChange={(event) => updateSubject({ short_summary: event.target.value })} />
+            </label>
+          </div>
+        )}
+      </section>
+
+      <section className={styles.collectionSection} aria-label="我的收藏">
+        <div className={styles.sectionHeading}>
+          <div>
+            <h3>我的收藏</h3>
+            <p>记录观看状态、进度和个人评价。</p>
+          </div>
+        </div>
+
+        <div className={styles.collectionFields}>
+          <label>
+            <span>收藏状态</span>
+            <Select options={collectionTypeOptions} value={String(value.collectionType || 1)} onChange={(nextValue) => onChange({ ...value, collectionType: Number(nextValue) || 1 })} />
+          </label>
+          <label>
+            <span>我的评分</span>
+            <div className={styles.rating}><Rate count={10} value={value.rate || 0} onChange={(rate) => onChange({ ...value, rate })} allowClear size="small" /></div>
+          </label>
+          <label>
+            <span>已看集数</span>
+            <Input type="number" min="0" placeholder="0" value={value.epStatus || ''} onChange={(event) => onChange({ ...value, epStatus: Number(event.target.value) || 0 })} />
+          </label>
+          <label>
+            <span>已读卷数</span>
+            <Input type="number" min="0" placeholder="0" value={value.volStatus || ''} onChange={(event) => onChange({ ...value, volStatus: Number(event.target.value) || 0 })} />
+          </label>
+          <label className={styles.fieldWide}>
+            <span>个人标签</span>
+            <Input placeholder="用逗号分隔，例如：治愈、周末观看" value={value.tags || ''} onChange={(event) => onChange({ ...value, tags: event.target.value })} />
+          </label>
+          <label className={styles.fieldWide}>
+            <span>短评</span>
+            <TextArea resize={false} rows={3} placeholder="写下值得记住的感受" value={value.comment || ''} onChange={(event) => onChange({ ...value, comment: event.target.value })} />
+          </label>
+        </div>
+      </section>
     </div>
   );
 };

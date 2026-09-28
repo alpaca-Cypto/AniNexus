@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import Image from "next/image";
+import { toast } from "@lobehub/ui";
 import { useParams, useRouter } from "next/navigation";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { ArrowLeft, BellOff, BellRing, BookOpen, ExternalLink, Film, Globe2, PlayCircle, Sparkles, Star } from "lucide-react";
@@ -11,7 +11,10 @@ import {
   saveDetailNavigationState,
 } from "@/lib/detailNavigationMemory";
 import { hasHomeNavigationState } from "@/lib/homeNavigationMemory";
-import { hasUpdateReminder, toggleUpdateReminder } from "@/lib/updateReminders";
+import { hasUpdateReminder, toggleUpdateReminder, UPDATE_REMINDERS_EVENT } from "@/lib/updateReminders";
+import { AUTH_CHANGED_EVENT } from "@/services/account";
+import CoverImage from "@/components/media/CoverImage";
+import { getSubjectCover } from "@/lib/coverImage";
 import type { SimilarRecommendation, Subject } from "@/services/search";
 import { searchService } from "@/services/search";
 import "./subject-detail.css";
@@ -35,6 +38,7 @@ export default function SubjectDetailPage() {
   const [similarLoading, setSimilarLoading] = useState(true);
   const [error, setError] = useState("");
   const [reminderEnabled, setReminderEnabled] = useState(false);
+  const [reminderPending, setReminderPending] = useState(false);
 
   useEffect(() => {
     const subjectId = Number(id);
@@ -69,7 +73,6 @@ export default function SubjectDetailPage() {
       .then(({ subject: nextSubject }) => {
         if (!active) return;
         setSubject(nextSubject);
-        setReminderEnabled(hasUpdateReminder({ subject: nextSubject }));
       })
       .catch(() => {
         if (active) setError("没有找到这个作品，或详情服务暂时不可用。");
@@ -90,6 +93,31 @@ export default function SubjectDetailPage() {
       });
     return () => { active = false; };
   }, [id]);
+
+  useEffect(() => {
+    if (!subject) return;
+    let active = true;
+    let generation = 0;
+    const syncReminder = () => {
+      const current = ++generation;
+      setReminderEnabled(false);
+      void hasUpdateReminder({ subject })
+        .then((enabled) => {
+          if (active && current === generation) setReminderEnabled(enabled);
+        })
+        .catch(() => {
+          if (active && current === generation) setReminderEnabled(false);
+        });
+    };
+    syncReminder();
+    window.addEventListener(AUTH_CHANGED_EVENT, syncReminder);
+    window.addEventListener(UPDATE_REMINDERS_EVENT, syncReminder);
+    return () => {
+      active = false;
+      window.removeEventListener(AUTH_CHANGED_EVENT, syncReminder);
+      window.removeEventListener(UPDATE_REMINDERS_EVENT, syncReminder);
+    };
+  }, [subject]);
 
   useEffect(() => {
     if (
@@ -155,10 +183,18 @@ export default function SubjectDetailPage() {
     });
   };
 
-  const handleReminder = () => {
-    if (!subject) return;
-    const reminder = toggleUpdateReminder({ subject });
-    setReminderEnabled(reminder.enabled);
+  const handleReminder = async () => {
+    if (!subject || reminderPending) return;
+    setReminderPending(true);
+    try {
+      const reminder = await toggleUpdateReminder({ subject });
+      setReminderEnabled(reminder.enabled);
+      toast.success(reminder.enabled ? '已开启更新提醒' : '已关闭更新提醒');
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : '设置提醒失败');
+    } finally {
+      setReminderPending(false);
+    }
   };
 
   if (loading) {
@@ -184,7 +220,7 @@ export default function SubjectDetailPage() {
   }
 
   const title = subject.name_cn || subject.name;
-  const cover = subject.images?.large || subject.images?.common || subject.image;
+  const cover = getSubjectCover(subject);
   const isAnime = subject.type === 2;
   const score = Number(subject.rating?.score || subject.score || 0);
   const tags = subject.tags?.map((tag) => tag.name).filter(Boolean) || [];
@@ -199,7 +235,7 @@ export default function SubjectDetailPage() {
         <article className="subject-detail__sheet">
           <header className="subject-detail__top">
             <div className="subject-detail__poster">
-              {cover ? <Image src={cover} alt={`${title} 封面`} fill priority sizes="(max-width: 720px) 150px, 230px" referrerPolicy="no-referrer" /> : <span>AN</span>}
+              <CoverImage src={cover} alt={`${title} 封面`} fill priority sizes="(max-width: 720px) 150px, 230px" />
             </div>
 
             <div className="subject-detail__intro">
@@ -216,7 +252,7 @@ export default function SubjectDetailPage() {
                 <div><span>年份</span><strong>{subject.date?.slice(0, 4) || "未知"}</strong></div>
               </div>
 
-              <button className={`subject-detail__reminder ${reminderEnabled ? "active" : ""}`} type="button" onClick={handleReminder}>
+              <button className={`subject-detail__reminder ${reminderEnabled ? "active" : ""}`} type="button" onClick={() => void handleReminder()} disabled={reminderPending}>
                 {reminderEnabled ? <BellOff size={17} /> : <BellRing size={17} />}
                 {reminderEnabled ? "关闭更新提醒" : "开启更新提醒"}
               </button>
@@ -287,7 +323,7 @@ export default function SubjectDetailPage() {
                 {similar.map((recommendation) => {
                   const item = recommendation.subject;
                   const itemTitle = item.name_cn || item.name;
-                  const itemCover = item.images?.large || item.images?.common || item.image;
+                  const itemCover = getSubjectCover(item);
                   const itemScore = Number(item.rating?.score || item.score || 0);
                   return (
                     <Link
@@ -297,7 +333,7 @@ export default function SubjectDetailPage() {
                       onClick={() => rememberDetailPosition(item.id)}
                     >
                       <div className="subject-detail__similar-cover">
-                        {itemCover ? <Image src={itemCover} alt={`${itemTitle} 封面`} fill sizes="(max-width: 600px) 44vw, 190px" referrerPolicy="no-referrer" /> : <span>AN</span>}
+                        <CoverImage src={itemCover} alt={`${itemTitle} 封面`} fill sizes="(max-width: 600px) 44vw, 190px" />
                       </div>
                       <div className="subject-detail__similar-copy">
                         <h3>{itemTitle}</h3>

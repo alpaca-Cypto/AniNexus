@@ -1,11 +1,13 @@
 "use client";
 
 import Link from "next/link";
-import Image from "next/image";
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { CSSProperties, FormEvent } from "react";
-import { Bot, CalendarDays, ChevronDown, ChevronLeft, ChevronRight, Clock3, Library, LoaderCircle, Search, SlidersHorizontal, Sparkles, Star, X } from "lucide-react";
+import { Bot, CalendarDays, ChevronDown, ChevronLeft, ChevronRight, Clock3, Heart, Library, LoaderCircle, Search, SlidersHorizontal, Sparkles, Star, X } from "lucide-react";
+import { toast } from "@lobehub/ui";
 import TiltedCardLink from "@/components/motion/TiltedCardLink";
+import SubjectModal from "@/components/Modal/SubjectModal";
+import CoverImage from "@/components/media/CoverImage";
 import {
   consumeHomeNavigationState,
   saveHomeNavigationState,
@@ -14,6 +16,9 @@ import {
 } from "@/lib/homeNavigationMemory";
 import type { SearchResult } from "@/services/search";
 import { searchService } from "@/services/search";
+import { getSubjectCover } from "@/lib/coverImage";
+import { useOwnerStatus } from "@/components/auth/useOwnerStatus";
+import { COLLECTIONS_UPDATED_EVENT, collectionService } from "@/services/collections";
 import "./search-home.css";
 
 type MediaTab = HomeMediaTab;
@@ -23,7 +28,7 @@ const PAGE_SIZE = 36;
 
 const quickLinks = [
   { href: "/collections", icon: Library, label: "打开收藏库" },
-  { href: "/Timetable", icon: CalendarDays, label: "查看追番日历" },
+  { href: "/timetable", icon: CalendarDays, label: "查看追番计划" },
   { href: "/assistant", icon: Bot, label: "询问动漫助手" },
 ];
 
@@ -43,6 +48,7 @@ function displaySource(source?: string | null): string {
 }
 
 export default function Home() {
+  const { user, isOwner, loading: accountLoading } = useOwnerStatus();
   const scrollContainerRef = useRef<HTMLDivElement>(null);
   const [navigationReady, setNavigationReady] = useState(false);
   const [tab, setTab] = useState<MediaTab>("anime");
@@ -59,10 +65,19 @@ export default function Home() {
   const [activeQuery, setActiveQuery] = useState("");
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+  const [selectedCollection, setSelectedCollection] = useState<SearchResult | null>(null);
+  const [collectionLoadingId, setCollectionLoadingId] = useState<number | null>(null);
+  const [collectionStatus, setCollectionStatus] = useState<{ userId: number; resultIds: string; savedIds: Set<number> } | null>(null);
+  const [collectionStatusVersion, setCollectionStatusVersion] = useState(0);
   const skipRestoredFetchRef = useRef(false);
   const restoredScrollTopRef = useRef<number | null>(null);
 
   const totalPages = Math.max(1, Math.ceil(total / PAGE_SIZE));
+  const userId = user?.id ?? null;
+  const resultIds = results?.map(({ subject }) => subject.id).join(",") ?? "";
+  const savedIds = collectionStatus?.userId === userId && collectionStatus.resultIds === resultIds
+    ? collectionStatus.savedIds
+    : null;
   const pageNumbers = useMemo(() => {
     const start = Math.max(1, Math.min(page - 2, totalPages - 4));
     return Array.from({ length: Math.min(5, totalPages) }, (_, index) => start + index);
@@ -74,7 +89,6 @@ export default function Home() {
       skipRestoredFetchRef.current = true;
       restoredScrollTopRef.current = savedState.scrollTop;
       // Hydration from sessionStorage must happen after the client mounts.
-      // eslint-disable-next-line react-hooks/set-state-in-effect
       setTab(savedState.tab);
       setQuery(savedState.query);
       setShowFilters(savedState.showFilters);
@@ -154,6 +168,25 @@ export default function Home() {
     };
   }, [navigationReady, results]);
 
+  useEffect(() => {
+    const onCollectionsUpdated = () => setCollectionStatusVersion((version) => version + 1);
+    window.addEventListener(COLLECTIONS_UPDATED_EVENT, onCollectionsUpdated);
+    return () => window.removeEventListener(COLLECTIONS_UPDATED_EVENT, onCollectionsUpdated);
+  }, []);
+
+  useEffect(() => {
+    if (accountLoading || userId === null || !results?.length) return;
+    let active = true;
+    const ids = results.map(({ subject }) => subject.id);
+    const key = ids.join(",");
+    void collectionService.getCollectionStatuses(ids).then(({ subject_ids }) => {
+      if (active) setCollectionStatus({ userId, resultIds: key, savedIds: new Set(subject_ids) });
+    }).catch(() => {
+      if (active) toast.error({ title: "暂时无法读取收藏状态", description: "请稍后刷新页面重试。" });
+    });
+    return () => { active = false; };
+  }, [accountLoading, userId, results, collectionStatusVersion]);
+
   const rememberListPosition = (targetSubjectId: number) => {
     if (!results) return;
     saveHomeNavigationState({
@@ -170,6 +203,22 @@ export default function Home() {
       scrollTop: scrollContainerRef.current?.scrollTop ?? 0,
       targetSubjectId,
     });
+  };
+
+  const openCollection = async (subjectId: number) => {
+    if (collectionLoadingId !== null) return;
+    setCollectionLoadingId(subjectId);
+    try {
+      const item = await collectionService.getCollection(subjectId);
+      setSelectedCollection(item);
+    } catch (error) {
+      toast.error({
+        title: "无法打开收藏",
+        description: error instanceof Error ? error.message : "请稍后重试。",
+      });
+    } finally {
+      setCollectionLoadingId(null);
+    }
   };
 
   const submitSearch = (event: FormEvent) => { event.preventDefault(); runSearch(); };
@@ -233,14 +282,27 @@ export default function Home() {
             <div className="search-portal__grid" key={`${tab}-${page}-${activeQuery}-${yearFrom}-${scoreFrom}-${sort}`}>{results.map((result, index) => {
               const { subject } = result;
               const title = subject.name_cn || subject.name;
-              const cover = subject.images?.large || subject.images?.common || subject.image;
+              const cover = getSubjectCover(subject);
               const score = Number(subject.rating?.score || subject.score || 0);
               const scoreSource = displaySource(result.score_source || result.primary_source || subject.source);
               const sourceId = subject.source_id || subject.id;
-              return <TiltedCardLink className="search-portal__card" href={`/subjects/${subject.id}`} key={`${subject.source}-${sourceId}`} style={{ "--card-index": Math.min(index, 11) } as CSSProperties} onClick={() => rememberListPosition(subject.id)}>
-                <div className="search-portal__cover">{cover ? <Image src={cover} alt={`${title} 封面`} fill sizes="(max-width: 760px) 46vw, 180px" referrerPolicy="no-referrer" /> : <div className="search-portal__cover-empty">AN</div>}<span>{subject.type === 2 ? "动画" : "书籍"}</span></div>
-                <div className="search-portal__card-copy"><h3>{title}</h3>{subject.name !== title && <p>{subject.name}</p>}<div>{score > 0 ? <span title={`评分来源：${scoreSource}`}><Star size={14} fill="currentColor" /> {scoreSource} {score.toFixed(1)}</span> : <span>暂无评分</span>}<span className="search-portal__freshness">{result.is_stale && <em title={result.data_updated_at ? `数据更新时间：${result.data_updated_at}` : "数据等待后台刷新"}>待更新</em>}<time>{subject.date?.slice(0, 4) || "年份未知"}</time></span></div></div>
-              </TiltedCardLink>;
+              const isSaved = savedIds?.has(subject.id) ?? false;
+              const collectionLabel = userId !== null && savedIds === null
+                ? `查看 ${title} 的收藏状态`
+                : `${isSaved ? "已收藏，编辑" : "收藏"} ${title}`;
+              return <TiltedCardLink
+                className="search-portal__card"
+                href={`/subjects/${subject.id}`}
+                key={`${subject.source}-${sourceId}`}
+                style={{ "--card-index": Math.min(index, 11) } as CSSProperties}
+                onClick={() => rememberListPosition(subject.id)}
+                cover={<CoverImage src={cover} alt={`${title} 封面`} fill sizes="(max-width: 760px) 31vw, 180px" fallback={<div className="search-portal__cover-empty">AN</div>} />}
+                badge={subject.type === 2 ? "动画" : "漫画"}
+                details={<><h3>{title}</h3>{subject.name !== title && <p>{subject.name}</p>}<div>{score > 0 ? <span title={`评分来源：${scoreSource}`}><Star size={14} fill="currentColor" /> {scoreSource} {score.toFixed(1)}</span> : <span>暂无评分</span>}<span className="search-portal__freshness">{result.is_stale && <em title={result.data_updated_at ? `数据更新时间：${result.data_updated_at}` : "数据等待后台刷新"}>待更新</em>}<time>{subject.date?.slice(0, 4) || "年份未知"}</time></span></div></>}
+                action={<button className={`search-portal__favorite${isSaved ? " is-saved" : ""}`} type="button" aria-label={collectionLabel} title={collectionLabel} disabled={collectionLoadingId === subject.id} onClick={() => void openCollection(subject.id)}>
+                  {collectionLoadingId === subject.id ? <LoaderCircle className="search-portal__spinner" size={21} aria-hidden="true" /> : <Heart size={21} strokeWidth={2.5} fill={isSaved ? "currentColor" : "none"} aria-hidden="true" />}
+                </button>}
+              />;
             })}</div>
             {totalPages > 1 && <nav className="search-portal__pagination" aria-label="搜索结果分页">
               <button type="button" onClick={() => changePage(page - 1)} disabled={page === 1} aria-label="上一页"><ChevronLeft size={17} /><span>上一页</span></button>
@@ -249,9 +311,10 @@ export default function Home() {
             </nav>}
           </>
           : results ? <div className="search-portal__state"><Search size={38} /><h2>{error ? "作品数据库暂不可用" : "没有找到匹配结果"}</h2><p>{error || "可以缩短关键词，或调整年份和评分条件。"}</p></div>
-          : <div className="search-portal__welcome"><p>输入关键词开始搜索，也可以先进入你的个人内容空间。</p><div>{quickLinks.map(({ href, icon: Icon, label }) => <Link href={href} key={href}><Icon size={19} /><span>{label}</span></Link>)}</div></div>}
+          : <div className="search-portal__welcome"><p>输入关键词开始搜索，也可以先进入你的个人内容空间。</p><div>{quickLinks.filter(({ href }) => isOwner || href !== "/assistant").map(({ href, icon: Icon, label }) => <Link href={href} key={href}><Icon size={19} /><span>{label}</span></Link>)}</div></div>}
         </section>
       </main>
+      {selectedCollection && <SubjectModal isOpen onClose={() => setSelectedCollection(null)} initialValues={selectedCollection} />}
     </div>
   );
 }

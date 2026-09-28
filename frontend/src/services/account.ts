@@ -6,6 +6,7 @@ export interface AccountUser {
   id: number;
   username: string;
   created_at: string;
+  is_owner: boolean;
 }
 
 export interface CaptchaChallenge {
@@ -15,8 +16,6 @@ export interface CaptchaChallenge {
 }
 
 export interface AuthResult {
-  access_token: string;
-  token_type: string;
   user: AccountUser;
 }
 
@@ -27,18 +26,35 @@ export interface Credentials {
   captcha_code: string;
 }
 
+export interface RegisterCredentials extends Credentials {
+  invite_code: string;
+}
+
+export interface CollectionExport {
+  format: string;
+  username: string;
+  exported_at: string;
+  collections: unknown[];
+}
+
 export const accountService = {
+  config: () => request<{ invite_required: boolean; bangumi_sync_enabled: boolean }>('/auth/config'),
   captcha: () => request<CaptchaChallenge>('/auth/captcha', { method: 'POST' }),
   login: (credentials: Credentials) =>
     request<AuthResult>('/auth/login', {
       method: 'POST',
       body: JSON.stringify(credentials),
     }),
-  register: (credentials: Credentials) =>
+  register: (credentials: RegisterCredentials) =>
     request<AuthResult>('/auth/register', {
       method: 'POST',
       body: JSON.stringify(credentials),
     }),
   me: () => request<AccountUser>('/auth/me'),
+  exportCollections: () => request<CollectionExport>('/auth/export'),
+  deleteAccount: (password: string) => request<void>('/auth/me', {
+    method: 'DELETE',
+    body: JSON.stringify({ password }),
+  }),
   logout: () => request<void>('/auth/logout', { method: 'POST' }),
 };

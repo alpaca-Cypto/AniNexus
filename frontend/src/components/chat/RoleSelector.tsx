@@ -34,10 +34,8 @@ export const RoleSelector = ({ value, onChange }: RoleSelectorProps) => {
       value={value}
       options={availableOptions}
       onChange={onChange}
-      // 样式微调，让它看起来像个胶囊
-      variant="borderless" 
-      style={{ width: 180 }}
-      className="truncate hover:bg-gray-50"
+      variant="borderless"
+      className="assistant-role-select"
     />
   );
 };

@@ -31,7 +31,6 @@ interface StandardLanesProps {
   overSlotId: string | null;
   activeDragItem: ScheduleItem | null;
   currentDay: number;
-  onResize?: (id: string, newDay: number, newSpan: number) => void;
   onDelete?: (id: string) => void;
 }
 
@@ -42,7 +41,6 @@ const StandardLanes: React.FC<StandardLanesProps> = ({
   overSlotId,
   activeDragItem,
   currentDay,
-  onResize,
   onDelete
 }) => {
   const [isSubjectModalOpen, setIsSubjectModalOpen] = useState(false);
@@ -222,11 +220,8 @@ const StandardLanes: React.FC<StandardLanesProps> = ({
                               >
                                 <DraggableItemWrapper id={`board-${itemKey}`} data={realItem}>
                                   <ResizableCardWrapper
-                                    id={itemKey}
-                                    day={day}
                                     duration={realItem.duration ?? 1}
                                     gap={VISUAL_GAP}
-                                    onResize={onResize}
                                   >
                                     <div style={{ height: `${CARD_HEIGHT}px`, minHeight: 0 }}>
                                       <TimelineMediaCard

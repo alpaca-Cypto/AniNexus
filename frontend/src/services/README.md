@@ -6,7 +6,7 @@
 
 | 文件 | 职责 | 依赖 |
 |------|------|------|
-| `client.ts` | 通用 `request<T>()` 封装，自动注入 JWT Token，统一错误处理 | `localStorage` |
+| `client.ts` | 通用 `request<T>()` 封装，使用同站 HttpOnly 会话 Cookie，统一错误处理 | 原生 `fetch` |
 | `auth.ts` | 登录/用户检查/Bangumi 用户同步 | `client.ts` |
 | `collections.ts` | 收藏 CRUD、Bangumi 同步、豆瓣上传 | `client.ts` |
 | `scheduleService.ts` | 排班数据获取与批量 upsert（含收藏→排班转换逻辑） | `client.ts` |
@@ -19,13 +19,13 @@
 ## 类型体系
 
 核心数据模型定义分布在：
-- [bangumiService.ts](file:///e:/HACCI/Documents/tools/OtakuNeko/frontend/src/services/bangumiService.ts) — `BangumiItem`, `SubjectInfo`, `CollectionInfo`, `WatchType` 枚举
-- [collections.ts](file:///e:/HACCI/Documents/tools/OtakuNeko/frontend/src/services/collections.ts) — `CollectionItem`, `CollectionListResponse`
-- [scheduleService.ts](file:///e:/HACCI/Documents/tools/OtakuNeko/frontend/src/services/scheduleService.ts) — `ScheduleBase`, `ScheduleRead`, `ScheduleUpsertList`
-- [auth.ts](file:///e:/HACCI/Documents/tools/OtakuNeko/frontend/src/services/auth.ts) — `LoginRequest`, `LoginResponse`, `UserInfo`
+- [bangumiService.ts](bangumiService.ts) — `BangumiItem`, `SubjectInfo`, `CollectionInfo`, `WatchType` 枚举
+- [collections.ts](collections.ts) — `CollectionItem`, `CollectionListResponse`
+- [scheduleService.ts](scheduleService.ts) — `ScheduleBase`, `ScheduleRead`, `ScheduleUpsertList`
+- [auth.ts](auth.ts) — `LoginRequest`, `LoginResponse`, `UserInfo`
 
 ## 注意事项
 
-- `client.ts` 在模块顶层访问 `localStorage`，SSR 场景下会报错（仅客户端组件使用，实际无影响）
+- 当前主登录入口在 `components/auth/AuthControl.tsx`。旧 `auth.ts`/`LoginModal.tsx` 未接入页面，接口模型已过时，不应重新用于生产登录。
 - `search.ts` 未复用 `client.ts` 的 `request()`，存在代码风格不一致
 - `scheduleService.ts` 包含业务逻辑（收藏搜索空结果时回退到 subjects 接口），职责略超 API 层

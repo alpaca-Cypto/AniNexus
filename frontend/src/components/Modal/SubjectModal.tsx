@@ -1,10 +1,10 @@
 import React, { useState, useEffect } from 'react';
 import { Modal, Button, Icon, toast } from '@lobehub/ui';
 import { BellRing, BellOff, ExternalLink, CheckCircle2, XCircle, Globe, PlayCircle } from 'lucide-react';
-import { useAppTheme } from '@/components/providers/LobeProvider';
 import SubjectForm from './form/SubjectForm';
 import { FormData } from './types';
 import { hasUpdateReminder, toggleUpdateReminder, UPDATE_REMINDERS_EVENT } from '@/lib/updateReminders';
+import { AUTH_CHANGED_EVENT } from '@/services/account';
 import { COLLECTIONS_UPDATED_EVENT, collectionService } from '@/services/collections';
 import styles from './SubjectModal.module.css';
 
@@ -23,8 +23,8 @@ const asString = (value: unknown): string => value == null ? '' : String(value);
 const asNumber = (value: unknown): number => Number(value || 0);
 
 const SubjectModal = ({ isOpen, onClose, initialValues }: SubjectModalProps) => {
-  const { isDarkMode } = useAppTheme();
   const [isReminderEnabled, setIsReminderEnabled] = useState(false);
+  const [isReminderSaving, setIsReminderSaving] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   
   // 解析项目数据的函数
@@ -75,7 +75,7 @@ const SubjectModal = ({ isOpen, onClose, initialValues }: SubjectModalProps) => 
     return {
       title: asString(subject.name_cn || subject.name || item.title),
       subject: {
-        id: asNumber(subject.id || subject.source_id),
+        id: asNumber(subject.id),
         source_id: asString(subject.source_id || subject.id),
         date: asString(subject.date),
         images: {
@@ -109,6 +109,7 @@ const SubjectModal = ({ isOpen, onClose, initialValues }: SubjectModalProps) => 
   const [formData, setFormData] = useState<FormData>(() => {
     return parseItemData(initialValues);
   });
+  const reminderSubjectId = formData.subject.id;
   
   // 当 initialValues 变化时，更新 formData
   useEffect(() => {
@@ -120,12 +121,32 @@ const SubjectModal = ({ isOpen, onClose, initialValues }: SubjectModalProps) => 
 
   useEffect(() => {
     if (!isOpen) return;
-
-    const syncReminderState = () => setIsReminderEnabled(hasUpdateReminder(formData));
+    if (!reminderSubjectId) {
+      setIsReminderEnabled(false);
+      return;
+    }
+    let active = true;
+    let generation = 0;
+    const syncReminderState = () => {
+      const current = ++generation;
+      setIsReminderEnabled(false);
+      void hasUpdateReminder({ id: reminderSubjectId })
+        .then((enabled) => {
+          if (active && current === generation) setIsReminderEnabled(enabled);
+        })
+        .catch(() => {
+          if (active && current === generation) setIsReminderEnabled(false);
+        });
+    };
     syncReminderState();
     window.addEventListener(UPDATE_REMINDERS_EVENT, syncReminderState);
-    return () => window.removeEventListener(UPDATE_REMINDERS_EVENT, syncReminderState);
-  }, [formData, isOpen]);
+    window.addEventListener(AUTH_CHANGED_EVENT, syncReminderState);
+    return () => {
+      active = false;
+      window.removeEventListener(UPDATE_REMINDERS_EVENT, syncReminderState);
+      window.removeEventListener(AUTH_CHANGED_EVENT, syncReminderState);
+    };
+  }, [reminderSubjectId, isOpen]);
 
   const handleOk = async () => {
     const source = formData.subject.source.trim();
@@ -191,7 +212,8 @@ const SubjectModal = ({ isOpen, onClose, initialValues }: SubjectModalProps) => 
 
   const getDisplayTitle = () => formData.subject?.name_cn || formData.subject?.name || formData.title;
 
-  const handleUpdateReminder = () => {
+  const handleUpdateReminder = async () => {
+    if (isReminderSaving) return;
     const title = getDisplayTitle();
     if (!title) {
       toast.error({
@@ -203,8 +225,9 @@ const SubjectModal = ({ isOpen, onClose, initialValues }: SubjectModalProps) => 
       return;
     }
 
+    setIsReminderSaving(true);
     try {
-      const reminder = toggleUpdateReminder(formData);
+      const reminder = await toggleUpdateReminder(formData);
       setIsReminderEnabled(reminder.enabled);
       toast.success({
         title: reminder.enabled ? '已开启更新提醒' : '已关闭更新提醒',
@@ -214,13 +237,15 @@ const SubjectModal = ({ isOpen, onClose, initialValues }: SubjectModalProps) => 
         icon: reminder.enabled ? BellRing : BellOff,
         duration: 3000,
       });
-    } catch {
+    } catch (error) {
       toast.error({
         title: '设置失败',
-        description: '浏览器无法保存提醒设置。',
+        description: error instanceof Error ? error.message : '无法保存提醒设置。',
         icon: XCircle,
         duration: 3000,
       });
+    } finally {
+      setIsReminderSaving(false);
     }
   };
 
@@ -281,7 +306,7 @@ const SubjectModal = ({ isOpen, onClose, initialValues }: SubjectModalProps) => 
     <>
       <Modal
         open={isOpen}
-        title="条目详情"
+        title="编辑收藏"
         onCancel={onClose}
         onOk={handleOk}
         okText="保存收藏"
@@ -291,11 +316,11 @@ const SubjectModal = ({ isOpen, onClose, initialValues }: SubjectModalProps) => 
         width={700}
         destroyOnHidden
       >
-        <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+        <div className={styles.content}>
           {/* 主体表单 */}
           <SubjectForm value={formData} onChange={setFormData} />
           
-          <section className={`${styles.followPanel} ${isDarkMode ? styles.followPanelDark : ''}`} aria-label="更新与观看">
+          <section className={styles.followPanel} aria-label="更新与观看">
             <div className={styles.reminderRow}>
               <span className={styles.reminderIcon} aria-hidden="true">
                 <Icon icon={isReminderEnabled ? BellRing : BellOff} />
@@ -308,30 +333,28 @@ const SubjectModal = ({ isOpen, onClose, initialValues }: SubjectModalProps) => 
                 type={isReminderEnabled ? 'primary' : 'default'}
                 icon={<Icon icon={isReminderEnabled ? CheckCircle2 : BellRing} />}
                 onClick={handleUpdateReminder}
+                loading={isReminderSaving}
               >
                 {isReminderEnabled ? '已开启提醒' : '开启提醒'}
               </Button>
             </div>
 
             {supportsVideoPlatforms && (
-              <div className={styles.channelArea}>
-                <div className={styles.channelHeader}>
-                  <strong>正版观看渠道</strong>
-                  <p>前往视频平台搜索当前作品，查看所在地区的版权与播放信息。</p>
-                </div>
+              <details className={styles.channelArea}>
+                <summary className={styles.channelHeader}>
+                  <span>
+                    <strong>查找正版观看渠道</strong>
+                    <small>按需展开视频平台入口</small>
+                  </span>
+                  <Icon icon={PlayCircle} />
+                </summary>
                 <div className={styles.channelGrid}>
-                  <Button className={styles.channelButton} icon={<Icon icon={PlayCircle} />} onClick={() => openPlatformSearch('bilibili')}>
-                    哔哩哔哩
-                  </Button>
-                  <Button className={styles.channelButton} icon={<Icon icon={PlayCircle} />} onClick={() => openPlatformSearch('tencent')}>
-                    腾讯视频
-                  </Button>
-                  <Button className={styles.channelButton} icon={<Icon icon={PlayCircle} />} onClick={() => openPlatformSearch('iqiyi')}>
-                    爱奇艺
-                  </Button>
+                  <Button className={styles.channelButton} onClick={() => openPlatformSearch('bilibili')}>哔哩哔哩</Button>
+                  <Button className={styles.channelButton} onClick={() => openPlatformSearch('tencent')}>腾讯视频</Button>
+                  <Button className={styles.channelButton} onClick={() => openPlatformSearch('iqiyi')}>爱奇艺</Button>
                 </div>
-                <p className={styles.channelNote}>平台是否提供观看服务，以搜索结果和当地版权信息为准。</p>
-              </div>
+                <p className={styles.channelNote}>播放服务以平台搜索结果和所在地区版权为准。</p>
+              </details>
             )}
 
             {sourceWebsite && (

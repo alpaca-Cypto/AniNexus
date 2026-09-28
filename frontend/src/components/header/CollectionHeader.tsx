@@ -4,11 +4,12 @@ import {Header} from './Header';
 import { useAppTheme } from '@/components/providers/LobeProvider';
 import { Segmented, Icon } from '@lobehub/ui';
 import SearchBar from './SearchBar';
-import { Bookmark, Film, Book, Gamepad2, Users, Filter, LayoutGrid } from 'lucide-react';
+import { Bookmark, Download, Film, Filter, LayoutGrid } from 'lucide-react';
 import { Dropdown } from 'antd';
 import type { MenuProps } from 'antd';
 
 interface CollectionHeaderProps {
+  onImportBangumi?: () => void;
   onSearch?: (value: string) => void;
   onViewModeChange?: (mode: 'grid' | 'list') => void;
   
@@ -26,6 +27,7 @@ interface CollectionHeaderProps {
 }
 
 export default function CollectionHeader({ 
+  onImportBangumi,
   onSearch, 
   filterValue, 
   onFilterChange,
@@ -62,11 +64,14 @@ export default function CollectionHeader({
     <div className="w-full">
       <Header
         leftArea={
-          <div className="flex items-center gap-3">
+          <div className="collection-header-title flex items-center gap-3">
             <Bookmark size={20} style={{ color: primaryColor }} />
             <span className="text-xl font-bold font-sans tracking-tight" style={{ color: primaryColor }}>
               我的收藏
             </span>
+            <button className="collection-import-trigger" type="button" onClick={onImportBangumi} aria-label="从 Bangumi 导入收藏">
+              <Download size={16} /><span>Bangumi 导入</span>
+            </button>
           </div>
         }
         centerArea={
@@ -93,21 +98,6 @@ export default function CollectionHeader({
                     icon: <Icon icon={Film} />,
                     label: '动画',
                     value: 'anime',
-                  },
-                  {
-                    icon: <Icon icon={Book} />,
-                    label: '书籍',
-                    value: 'books', // 注意：这里传出去的是 'books'，page.tsx 里记得映射到 'manga'
-                  },
-                  {
-                    icon: <Icon icon={Gamepad2} />,
-                    label: '游戏',
-                    value: 'games',
-                  },
-                  {
-                    icon: <Icon icon={Users} />,
-                    label: '三次元',
-                    value: 'real',
                   },
                 ]}
               />

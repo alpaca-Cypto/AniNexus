@@ -1,11 +1,10 @@
 "use client";
 
 import { useState } from 'react';
-import { Eraser, Sparkles, X } from 'lucide-react';
-import { ChatInputArea, ChatInputActionBar, TokenTag, ChatSendButton } from '@lobehub/ui/chat';
+import { Eraser, X } from 'lucide-react';
+import { ChatInputArea, ChatInputActionBar, ChatSendButton } from '@lobehub/ui/chat';
 import { ActionIcon, toast } from '@lobehub/ui';
-import { Avatar } from '@lobehub/ui';
-import { useAppTheme } from '@/components/providers/LobeProvider';
+import CoverImage from '@/components/media/CoverImage';
 import { RoleSelector } from './RoleSelector';
 import { ModelSelector } from './ModelSelector';
 import SearchTrigger, { SearchResultItem } from './SearchBar';
@@ -37,8 +36,6 @@ export const ChatInput = ({
     minHeight: 128,
     maxHeight: 600, 
   };
-
-  const { isDarkMode } = useAppTheme();
 
   // 处理搜索结果选择
   const handleSearchSelect = (item: SearchResultItem) => {
@@ -74,86 +71,29 @@ export const ChatInput = ({
   };
 
   return (
-    <div
-      style={{
-        position: 'absolute',
-        bottom: 0,
-        left: 0,
-        width: '100%',
-        padding: '0 16px 24px 16px', 
-        zIndex: 10,
-      }}
-    >
-      {/* 胶囊容器 */}
-      {contextItems.length > 0 && (
-        <div
-          style={{
-            display: 'flex',
-            gap: 8,
-            flexWrap: 'wrap',
-            padding: '12px 0',
-            animation: 'fadeIn 0.3s ease-in-out',
-          }}
-        >
-          {contextItems.map((item, index) => (
-            <div
-              key={item.id}
-              style={{
-                display: 'flex',
-                alignItems: 'center',
-                gap: 6,
-                padding: '6px 10px',
-                borderRadius: 20,
-                backgroundColor: isDarkMode ? 'rgba(75, 85, 99, 0.5)' : 'rgba(229, 231, 235, 0.8)',
-                border: `1px solid ${isDarkMode ? 'rgba(255,255,255,0.1)' : 'rgba(0,0,0,0.1)'}`,
-                backdropFilter: 'saturate(180%) blur(12px)',
-                transition: 'all 0.2s ease',
-              }}
-            >
-              {/* 封面小图 */}
-              <Avatar
-                size={24}
-                style={{
-                  borderRadius: 4,
-                  objectFit: 'cover',
-                }}
-                avatar={item.cover || '/Icon.png'}
-              />
-              
-              {/* 标题文本 */}
-              <span style={{ fontSize: 12, fontWeight: 500 }}>
-                {item.title}
-              </span>
-              
-              {/* 删除按钮 */}
-              <ActionIcon
-                icon={X}
-                size={{ blockSize: 16 }}
-                onClick={() => handleRemoveContextItem(index)}
-                style={{
-                  cursor: 'pointer',
-                  opacity: 0.7,
-                  transition: 'opacity 0.2s ease'
-                }}
-                onMouseEnter={(e) => {
-                  e.currentTarget.style.opacity = '1';
-                }}
-                onMouseLeave={(e) => {
-                  e.currentTarget.style.opacity = '0.7';
-                }}
-              />
-            </div>
-          ))}
-        </div>
-      )}
+    <div className="assistant-composer">
+      <div className="assistant-composer__inner">
+        {contextItems.length > 0 && (
+          <div className="assistant-composer__contexts">
+            {contextItems.map((item, index) => (
+              <div className="assistant-context-chip" key={item.id}>
+                <span className="assistant-context-chip__cover">
+                  <CoverImage src={item.cover || '/Icon.png'} alt="" fill sizes="24px" />
+                </span>
+                <span>{item.title}</span>
+                <button type="button" onClick={() => handleRemoveContextItem(index)} aria-label={`移除引用：${item.title}`}>
+                  <X size={14} />
+                </button>
+              </div>
+            ))}
+          </div>
+        )}
 
-      {/* 输入区域 */}
-      <ChatInputArea 
-        topAddons={
+        <ChatInputArea
+          topAddons={
             <ChatInputActionBar
               leftAddons={
-                <div style={{ marginLeft: '20px', display: 'flex', alignItems: 'center', gap: '8px' }}>
-                  <span className="chat-demo-badge"><Sparkles size={14} />收藏工具已启用</span>
+                <div className="assistant-composer__tools">
                   <ModelSelector
                     value={selectedModel}
                     onChange={onModelChange}
@@ -166,56 +106,21 @@ export const ChatInput = ({
                   />
                   <SearchTrigger onSelect={handleSearchSelect} />
                   <ActionIcon icon={Eraser} title="清除" onClick={handleClear} style={{ cursor: 'pointer' }} />
-                  <TokenTag maxValue={5000} value={1000} />
                 </div>
               }
             />
           }
-        bottomAddons={<ChatSendButton loading={loading} onSend={handleSend} />}
-        
-        expand={isExpand}
-        setExpand={setIsExpand}
-        heights={heights}
-        value={text}
-        onInput={setText}
-        
-        onSend={handleSend}
-        
-        placeholder="输入消息..."
-        
-        style={{
-          background: isDarkMode 
-            ? 'rgba(30, 30, 30, 0.6)' 
-            : 'rgba(255, 255, 255, 0.6)',
-
-          backdropFilter: 'saturate(180%) blur(12px)',
-          
-          border: `1px solid ${isDarkMode ? 'rgba(255,255,255,0.08)' : 'rgba(0,0,0,0.06)'}`,
-          
-          boxShadow: isDarkMode
-            ? '0 8px 32px 0 rgba(0, 0, 0, 0.3), inset 0 1px 0 0 rgba(255, 255, 255, 0.05)'
-            : '0 8px 32px 0 rgba(0, 0, 0, 0.08), inset 0 1px 0 0 rgba(255, 255, 255, 0.6)',
-          
-          borderRadius: 16,
-          overflow: 'hidden',
-        }}
-        className="w-full"
-      />
-
-      {/* 添加淡入动画样式 */}
-      <style jsx>{`
-        .chat-demo-badge { min-height: 30px; padding: 0 10px; display: inline-flex; align-items: center; gap: 6px; color: var(--nexus-primary-dark); border-radius: 999px; background: var(--nexus-primary-soft); font-size: 12px; font-weight: 700; white-space: nowrap; }
-        @keyframes fadeIn {
-          from {
-            opacity: 0;
-            transform: translateY(-10px);
-          }
-          to {
-            opacity: 1;
-            transform: translateY(0);
-          }
-        }
-      `}</style>
+          bottomAddons={<ChatSendButton loading={loading} onSend={handleSend} />}
+          expand={isExpand}
+          setExpand={setIsExpand}
+          heights={heights}
+          value={text}
+          onInput={setText}
+          onSend={handleSend}
+          placeholder="可以问剧情、制作团队、推荐，或比较两部作品…"
+          className="assistant-composer__box"
+        />
+      </div>
     </div>
   );
 };

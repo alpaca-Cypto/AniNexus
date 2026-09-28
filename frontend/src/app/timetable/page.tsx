@@ -13,14 +13,7 @@ import {
   type DragStartEvent,
 } from '@dnd-kit/core';
 import { useAppTheme } from '@/components/providers/LobeProvider';
-import {
-  ActionIcon,
-  Button,
-  Flexbox,
-  Header,
-  PopoverGroup,
-  toast,
-} from '@lobehub/ui';
+import { ActionIcon, Button, toast } from '@lobehub/ui';
 import {
   ChevronDown,
   ChevronUp,
@@ -36,20 +29,29 @@ import {
   BangumiItem as ScheduleItem,
   getBangumiCalendar,
   getBangumiConnectionStatus,
-  WatchType,
 } from '@/services/bangumiService';
 import {
   COLLECTIONS_UPDATED_EVENT,
   collectionService,
   type CollectionListResponse,
 } from '@/services/collections';
-import { DEMO_SCHEDULES } from '@/data/demoContent';
 import TimetableHeader from '@/components/header/TimetableHeader';
 import TimelineBoard from '@/components/timetable/TimelineBoard';
+import TimetableEmptyState from '@/components/timetable/TimetableEmptyState';
+import TimetableDragGuide from '@/components/timetable/TimetableDragGuide';
 import StandardLanes from '@/components/timetable/StandardLanes';
 import TimelineMediaCard from '@/components/timetable/TimelineMediaCard';
 import { ExportTickTickModal } from '@/components/Modal/ExportTickTickModal';
 import dynamic from 'next/dynamic';
+import { clearTimetableDraft } from '@/lib/timetableDraft';
+import { accountService } from '@/services/account';
+import { useOwnerStatus } from '@/components/auth/useOwnerStatus';
+import {
+  getDraggedItemKey,
+  getScheduleItemKey,
+  getTimetableDropPatch,
+} from '@/lib/timetableDnD';
+import './timetable.css';
 
 const CollectionPanel = dynamic(() => import('@/components/timetable/DraggablePanel'), {
   ssr: false,
@@ -105,14 +107,18 @@ const SWIMLANES = [
 // 主页面组件
 export default function WeeklyBoardPage() {
   const { isDarkMode } = useAppTheme();
+  const { user, isOwner, loading: accountLoading } = useOwnerStatus();
   const currentDay = getCurrentDay();
-  const [scheduleItems, setScheduleItems] = useState<ScheduleItem[]>(() => DEMO_SCHEDULES.map((item) => ({ ...item, subject: { ...item.subject } })));
-  const [collectionItems, setCollectionItems] = useState<ScheduleItem[]>(() => DEMO_SCHEDULES.map((item) => ({ ...item, subject: { ...item.subject } })));
+  const [scheduleItems, setScheduleItems] = useState<ScheduleItem[]>([]);
+  const [collectionItems, setCollectionItems] = useState<ScheduleItem[]>([]);
+  const [collectionsReady, setCollectionsReady] = useState(false);
+  const [openCollectionsSignal, setOpenCollectionsSignal] = useState(0);
   const [activeDragItem, setActiveDragItem] = useState<ScheduleItem | null>(null);
   const [overSlotId, setOverSlotId] = useState<string | null>(null);
   const [isLanesCollapsed, setIsLanesCollapsed] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
-  const error = null;
+  const [loadError, setLoadError] = useState<string | null>(null);
+  const [bangumiSyncEnabled, setBangumiSyncEnabled] = useState(false);
   const [isTickTickModalOpen, setIsTickTickModalOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   
@@ -122,27 +128,25 @@ export default function WeeklyBoardPage() {
       activationConstraint: { distance: 5 }
     })
   );
+
+  useEffect(() => {
+    let active = true;
+    void accountService.config()
+      .then((config) => { if (active) setBangumiSyncEnabled(config.bangumi_sync_enabled); })
+      .catch(() => { if (active) setBangumiSyncEnabled(false); });
+    return () => { active = false; };
+  }, []);
   
   // 前三个分类 (Meal, Backlog, Reading)
   const standardLanes = SWIMLANES.filter(swimlane => swimlane.id !== 'New');
   
-  // 辅助方法：去除ID前缀，获取真实ID
-  const getRealId = (id: string) => id.replace(/^(panel-|board-|timeline-|lane-)/, '');
-  
-  // 拖拽开始处理器
   const handleDragStart = (event: DragStartEvent) => {
     const { active } = event;
-    
-    // 首先尝试从active.data中获取拖动的项目（适用于从CollectionPanel拖动的情况）
-    if (active.data && active.data.current) {
-      setActiveDragItem(active.data.current as ScheduleItem);
-    } else {
-      // 然后尝试从scheduleItems中查找（适用于从已有泳道拖动的情况）
-      const realId = getRealId(String(active.id));
-      const draggedItem = scheduleItems.find(item => `${item.subject.source}-${item.subject.source_id}` === realId);
-      setActiveDragItem(draggedItem || null);
-    }
-    
+    const draggedItem = active.data.current as ScheduleItem | undefined;
+    const activeKey = getDraggedItemKey(String(active.id));
+    setActiveDragItem(
+      draggedItem ?? scheduleItems.find((item) => getScheduleItemKey(item) === activeKey) ?? null,
+    );
     setOverSlotId(null);
   };
   
@@ -158,144 +162,36 @@ export default function WeeklyBoardPage() {
   
   const handleDragEnd = (event: DragEndEvent) => {
     const { active, over } = event;
-    
-    if (typeof setOverSlotId === 'function') setOverSlotId(null);
-    if (typeof setActiveDragItem === 'function') setActiveDragItem(null);
+    const draggedItem = active.data.current as ScheduleItem | undefined;
+    const activeKey = getDraggedItemKey(String(active.id));
+    const dropPatch = over ? getTimetableDropPatch(String(over.id)) : null;
 
-    if (!over) return;
+    setOverSlotId(null);
+    setActiveDragItem(null);
 
-    // 强制转换为字符串，防止因 Number 和 String 不一致导致匹配失败
-    const activeIdWithPrefix = String(active.id);
-    const realActiveId = getRealId(activeIdWithPrefix);
-    const overId = String(over.id);
-
-    // 在调用 setScheduleItems 之前，先将当前的 activeDragItem 状态提取到一个局部变量中
-    const currentActiveItem = activeDragItem;
+    if (!dropPatch) return;
 
     setScheduleItems((prevItems) => {
-      // 首先尝试从prevItems中找到activeItem（适用于从已有泳道拖动的情况）
-      let activeItem = prevItems.find((item) => `${item.subject.source}-${item.subject.source_id}` === realActiveId);
-      
-      // 如果找不到，优先将外层的 currentActiveItem 赋值给 activeItem
-      if (!activeItem) {
-        activeItem = currentActiveItem || undefined;
-      }
-      
-      // 如果还是找不到，尝试从active.data中获取（适用于从CollectionPanel拖动的情况）
-      if (!activeItem && active.data && active.data.current) {
-        activeItem = active.data.current as ScheduleItem;
-      }
-      
+      const existingItem = prevItems.find((item) => getScheduleItemKey(item) === activeKey);
+      const activeItem = existingItem ?? draggedItem ?? activeDragItem ?? undefined;
       if (!activeItem) return prevItems;
+      if (!existingItem) return [...prevItems, { ...activeItem, ...dropPatch }];
 
-      let newDay = activeItem.watch_day ?? 0;
-      let newTime = activeItem.watch_time || '';
-      let newType = activeItem.watch_type || WatchType.NEW;
-      let newDuration = activeItem.duration || 1;
-
-      if (overId.startsWith('lane-')) {
-        // 情况 A: 拖入标准泳道
-        const parts = overId.split('-');
-        if (parts.length >= 3) {
-          const laneStr = parts[1].toUpperCase();
-          newDay = parseInt(parts[2], 10);
-          
-          // 使用更宽松的匹配，防止 swimlane.id 格式不同导致匹配失败
-          if (laneStr.includes('MEAL') || laneStr === '1') newType = WatchType.MEAL;
-          else if (laneStr.includes('READING') || laneStr === '2' || laneStr.includes('LEISURE')) newType = WatchType.LEISURE;
-          else if (laneStr.includes('BACKLOG') || laneStr === '3' || laneStr.includes('LONG')) newType = WatchType.LONG_GRASS;
-          else if (laneStr.includes('NEW') || laneStr === '4') newType = WatchType.NEW;
-          
-          newTime = ''; // 移入泳道后，清空具体时间
-          newDuration = 1; // 标准泳道中默认持续时间为1天
-        }
-      } else if (overId.includes('-') && !overId.startsWith('board-')) {
-        // 情况 B: 拖入时间网格，排除拖到其他卡片上的情况
-        const parts = overId.split('-');
-        if (parts.length === 2) {
-          const visualDay = parseInt(parts[0], 10);
-          const slotIndex = parseInt(parts[1], 10);
-          
-          const START_HOUR = 18;
-          const hour = START_HOUR + Math.floor(slotIndex / 3);
-          const minute = (slotIndex % 3) * 20;
-          
-          let logicalDay = visualDay;
-          
-          // 🌟 核心跨天修正：如果落入的是深夜档(hour>=24)
-          // 视觉上它属于 visualDay 的深夜，但在真实逻辑中，它的物理时间是下一天的凌晨。
-          // 所以存储数据的 watch_day 必须是视觉天数 +1，才能被正确渲染在深夜档网格。
-          if (hour >= 24) {
-            logicalDay = (visualDay + 1) % 7;
-          }
-          
-          newDay = logicalDay;
-          const displayHour = hour >= 24 ? hour - 24 : hour;
-          newTime = `${displayHour.toString().padStart(2, '0')}:${minute.toString().padStart(2, '0')}`;
-          newType = WatchType.NEW;
-          newDuration = 1; // 时间网格中默认持续时间为1天
-        }
-      } else if (overId.startsWith('board-')) {
-        // 情况 C: 拖到其他卡片上，忽略此操作
-        return prevItems;
-      } else {
-        return prevItems;
-      }
-
-      // 检查项目是否已存在于prevItems中
-      const itemExists = prevItems.some((item) => `${item.subject.source}-${item.subject.source_id}` === realActiveId);
-      
-      if (itemExists) {
-        // 如果项目已存在，更新它
-        return prevItems.map((item) =>
-          `${item.subject.source}-${item.subject.source_id}` === realActiveId
-            ? {
-                ...item,
-                watch_day: newDay,
-                watch_time: newTime,
-                watch_type: newType,
-                duration: newDuration
-              }
-            : item
-        );
-      } else {
-        // 如果项目不存在（从CollectionPanel拖动的新项），添加它
-        return [
-          ...prevItems,
-          {
-            ...activeItem,
-            watch_day: newDay,
-            watch_time: newTime,
-            watch_type: newType,
-            duration: newDuration
-          }
-        ];
-      }
+      return prevItems.map((item) =>
+        getScheduleItemKey(item) === activeKey ? { ...item, ...dropPatch } : item,
+      );
     });
   };
 
-  // 处理卡片拉伸事件
-  const handleResize = useCallback((id: string, newDay: number, newDuration: number) => {
-    setScheduleItems(prev => prev.map(item => {
-      if (`${item.subject.source}-${item.subject.source_id}` === id) {
-        return {
-          ...item,
-          watch_day: newDay,
-          duration: newDuration
-        };
-      }
-      return item;
-    }));
-  }, []);
-  
   // 处理卡片删除事件
   const handleDelete = useCallback((id: string) => {
-    setScheduleItems(prev => prev.filter(item => `${item.subject.source}-${item.subject.source_id}` !== id));
+    setScheduleItems(prev => prev.filter(item => getScheduleItemKey(item) !== id));
   }, []);
   
   // 处理获取 Bangumi 日历数据
   const handleFetchBangumiCalendar = useCallback(async () => {
     setIsLoading(true);
+    setLoadError(null);
     try {
       const [calendarResult, connectionResult] = await Promise.allSettled([
         getBangumiCalendar(),
@@ -316,7 +212,9 @@ export default function WeeklyBoardPage() {
         }
       }
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : 'Bangumi 日历导入失败');
+      const message = error instanceof Error ? error.message : 'Bangumi 日历导入失败';
+      setLoadError(message);
+      toast.error(message);
     } finally {
       setIsLoading(false);
     }
@@ -352,7 +250,7 @@ export default function WeeklyBoardPage() {
     const refreshCollections = () => {
       void loadSavedCollections().catch(() => {
         toast.error('无法刷新我的收藏');
-      });
+      }).finally(() => setCollectionsReady(true));
     };
     refreshCollections();
     window.addEventListener(COLLECTIONS_UPDATED_EVENT, refreshCollections);
@@ -361,6 +259,7 @@ export default function WeeklyBoardPage() {
 
   const handleSyncPersonalCalendar = useCallback(async () => {
     setIsLoading(true);
+    setLoadError(null);
     try {
       const syncResult = await collectionService.syncBgm({ subject_type: 2 });
       const personalCollections = await loadSavedCollections();
@@ -386,16 +285,19 @@ export default function WeeklyBoardPage() {
         toast.success(`已同步个人日历，本周匹配 ${personalCalendar.length} 部“在看”作品`);
       }
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : 'Bangumi 个人收藏同步失败');
+      const message = error instanceof Error ? error.message : 'Bangumi 个人收藏同步失败';
+      setLoadError(message);
+      toast.error(message);
     } finally {
       setIsLoading(false);
     }
   }, [loadSavedCollections]);
-  // 同步数据回调
-  const handleSyncData = useCallback((data: ScheduleItem[]) => {
+  // 恢复浏览器中的本地草稿
+  const handleRestoreDraft = useCallback((data: ScheduleItem[]) => {
     setScheduleItems(data);
+    setLoadError(null);
   }, []);
-  
+
   // 搜索处理函数
   const handleSearch = useCallback((value: string) => {
     setSearchQuery(value);
@@ -404,9 +306,10 @@ export default function WeeklyBoardPage() {
   // 清空所有卡片
   const handleClearAll = useCallback(() => {
     setScheduleItems([]);
-    localStorage.removeItem('aninexus-demo-schedules');
-    toast.success('已清空当前演示日程');
-  }, []);
+    setLoadError(null);
+    if (user) clearTimetableDraft(user.id, isOwner);
+    toast.success('已清空当前计划和本地草稿');
+  }, [user, isOwner]);
 
   const openTickTickModal = useCallback(() => setIsTickTickModalOpen(true), []);
   const closeTickTickModal = useCallback(() => setIsTickTickModalOpen(false), []);
@@ -420,28 +323,25 @@ export default function WeeklyBoardPage() {
       onDragEnd={handleDragEnd}
       collisionDetection={pointerWithin}
     >
-      <div className={`nexus-workspace-page h-full flex flex-col overflow-hidden ${isDarkMode ? 'dark:bg-neutral-950' : 'bg-white'}`}>
-        {/* 顶部 Header 区域 - 固定不滚动 */}
+      <div className={`nexus-workspace-page timetable-page h-full flex flex-col overflow-hidden ${isDarkMode ? 'dark:bg-neutral-950' : 'bg-white'}`}>
         <div className="flex-none z-10">
           <TimetableHeader 
+            userId={user?.id ?? null}
+            isOwner={isOwner}
             schedules={scheduleItems}
-            onSyncData={handleSyncData}
+            onRestoreDraft={handleRestoreDraft}
             onExportTickTick={openTickTickModal}
             onSearch={handleSearch}
           />
         </div>
 
-        {/* 主内容区域 - 包含左侧时间轴和右侧控制面板 */}
-        <div className="flex-1 flex overflow-hidden">
-          {/* 左侧内容区域 */}
-          <div className="flex-1 flex flex-col overflow-hidden">
-            {/* --- FIXED AREA --- */}
+        <TimetableDragGuide userId={user?.id ?? null} ready={!accountLoading} />
+
+        <div className="timetable-layout flex-1 flex overflow-hidden">
+          <div className="timetable-planner flex-1 flex flex-col overflow-hidden">
             <div className={`flex-none ${isDarkMode ? 'bg-gray-900' : 'bg-white'} z-20 shadow-sm`}>
-              {/* 1. Global Week Header (Mon-Sun) */}
-              <div className={`flex w-full border-b ${isDarkMode ? 'border-gray-800 bg-gray-800' : 'border-gray-100 bg-white'}`}>
-                {/* 左侧空白占位符 */}
+              <div className={`timetable-week-header flex w-full border-b ${isDarkMode ? 'border-gray-800 bg-gray-800' : 'border-gray-100 bg-white'}`}>
                 <div className="w-20"></div>
-                {/* 右侧星期表头 */}
                 <div className="flex-1 grid grid-cols-7">
                   {WEEK_DAYS.map((day, index) => {
                     const isToday = index === currentDay;
@@ -464,7 +364,6 @@ export default function WeeklyBoardPage() {
                 </div>
               </div>
               
-              {/* 2. Standard Lanes (Meal, Backlog, Reading) - Static content */}
               {!isLanesCollapsed && (
                 <StandardLanes 
                   standardLanes={standardLanes}
@@ -473,66 +372,68 @@ export default function WeeklyBoardPage() {
                   overSlotId={overSlotId}
                   activeDragItem={activeDragItem}
                   currentDay={currentDay}
-                  onResize={handleResize}
                   onDelete={handleDelete}
                 />
               )}
 
-              <Header
-                logo={
-                  <PopoverGroup contentLayoutAnimation>
-                    <Flexbox horizontal gap={4} justify="center" style={{ width: '100%' }}>
-                      <Button
-                        type="primary"
-                        onClick={handleSyncPersonalCalendar}
-                        disabled={isLoading}
-                        loading={isLoading}
-                        icon={<CloudSync size={16} />}
-                        style={{ height: '36px' }}
-                      >
-                        同步我的在看
-                      </Button>
-                      <Button
-                        type="text"
-                        onClick={handleFetchBangumiCalendar}
-                        disabled={isLoading}
-                        icon={<CalendarPlus size={16} style={{ color: '#9333ea' }} />}
-                        variant="text"
-                        style={{ height: '36px' }}
-                      >
-                        浏览本周新番
-                      </Button>
-                      {/* 折叠/展开标准泳道 */}
-                    </Flexbox>
-                  </PopoverGroup>
-                }
-                actions={
-                  <PopoverGroup contentLayoutAnimation>
-                    <Flexbox horizontal gap={4} justify="center" style={{ width: '100%' }}>
-                      {/* 清空所有卡片 */}
-                      <ActionIcon
-                        icon={<Trash2 size={16} />}
-                        title="清空所有卡片"
-                        onClick={handleClearAll}
-                        variant="borderless"
-                        size="small"
-                      />
-                      {/* 导出菜单 */}
-                      <ActionIcon
-                        icon={isLanesCollapsed ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
-                        title={isLanesCollapsed ? "展开标准泳道" : "折叠标准泳道"}
-                        onClick={toggleLanesCollapse}
-                        variant="borderless"
-                        size="small"
-                      />
-                    </Flexbox>
-                  </PopoverGroup>
-                }
-                className="h-12"
-              />
+              {scheduleItems.length === 0 && (
+                <TimetableEmptyState
+                  bangumiSyncEnabled={bangumiSyncEnabled}
+                  collectionCount={collectionItems.length}
+                  collectionsReady={collectionsReady}
+                  error={loadError}
+                  isLoading={isLoading}
+                  onBrowse={handleFetchBangumiCalendar}
+                  onShowCollections={() => setOpenCollectionsSignal((value) => value + 1)}
+                  onSync={handleSyncPersonalCalendar}
+                />
+              )}
+
+              {scheduleItems.length > 0 && (
+                <div className="timetable-actions" aria-label="追番计划操作">
+                  <div className="timetable-actions__summary">
+                    <strong>{scheduleItems.length}</strong>
+                    <span>个计划</span>
+                  </div>
+                  {bangumiSyncEnabled && <div className="timetable-actions__primary">
+                    <Button
+                      type="primary"
+                      onClick={handleSyncPersonalCalendar}
+                      disabled={isLoading}
+                      loading={isLoading}
+                      icon={<CloudSync size={16} />}
+                    >
+                      同步我的在看
+                    </Button>
+                    <Button
+                      type="text"
+                      onClick={handleFetchBangumiCalendar}
+                      disabled={isLoading}
+                      icon={<CalendarPlus size={16} />}
+                    >
+                      浏览本周新番
+                    </Button>
+                  </div>}
+                  <div className="timetable-actions__secondary">
+                    <ActionIcon
+                      icon={isLanesCollapsed ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
+                      title={isLanesCollapsed ? '展开生活泳道' : '收起生活泳道'}
+                      onClick={toggleLanesCollapse}
+                      variant="borderless"
+                      size="small"
+                    />
+                    <ActionIcon
+                      icon={<Trash2 size={16} />}
+                      title="清空当前计划"
+                      onClick={handleClearAll}
+                      variant="borderless"
+                      size="small"
+                    />
+                  </div>
+                </div>
+              )}
             </div>
 
-            {/* --- SCROLLABLE AREA (Replaced with TimelineBoard component) --- */}
             <TimelineBoard 
               scheduleItems={scheduleItems} 
               isDarkMode={isDarkMode} 
@@ -541,12 +442,11 @@ export default function WeeklyBoardPage() {
               activeDragItem={activeDragItem || undefined}
               onDelete={handleDelete}
               isLoading={isLoading}
-              error={error || undefined}
+              error={loadError || undefined}
             />
           </div>
           
-          {/* 右侧可拖拽面板 */}
-          <CollectionPanel searchQuery={searchQuery} collections={collectionItems} />
+          <CollectionPanel searchQuery={searchQuery} collections={collectionItems} openSignal={openCollectionsSignal} />
         </div>
       </div>
       

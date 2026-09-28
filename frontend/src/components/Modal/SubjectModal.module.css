@@ -1,21 +1,17 @@
+.content {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
 .followPanel {
   display: grid;
   gap: 16px;
   padding: 18px;
-  color: #241a24;
-  border: 1px solid #eadce4;
+  color: var(--nexus-text);
+  border: 1px solid var(--nexus-line);
   border-radius: 16px;
-  background:
-    radial-gradient(circle at 94% 12%, rgba(244, 114, 182, 0.14), transparent 31%),
-    #fffafd;
-}
-
-.followPanelDark {
-  color: #f8edf4;
-  border-color: rgba(255, 255, 255, 0.12);
-  background:
-    radial-gradient(circle at 94% 12%, rgba(244, 114, 182, 0.16), transparent 31%),
-    #211a22;
+  background: var(--nexus-surface);
 }
 
 .reminderRow {
@@ -30,14 +26,9 @@
   flex: 0 0 auto;
   display: grid;
   place-items: center;
-  color: #a53869;
+  color: var(--nexus-primary-dark);
   border-radius: 13px;
-  background: #f9dce9;
-}
-
-.followPanelDark .reminderIcon {
-  color: #ffc3dd;
-  background: rgba(244, 114, 182, 0.16);
+  background: var(--nexus-primary-soft);
 }
 
 .reminderCopy {
@@ -56,29 +47,39 @@
 .channelHeader p,
 .channelNote {
   margin: 4px 0 0;
-  color: #6c5663;
+  color: var(--nexus-muted);
   font-size: 12px;
   line-height: 1.55;
 }
 
-.followPanelDark .reminderCopy p,
-.followPanelDark .channelHeader p,
-.followPanelDark .channelNote {
-  color: #c9b6c1;
-}
-
 .channelArea {
   padding-top: 15px;
-  border-top: 1px solid #eadce4;
-}
-
-.followPanelDark .channelArea {
-  border-top-color: rgba(255, 255, 255, 0.1);
+  border-top: 1px solid var(--nexus-line);
 }
 
 .channelHeader {
-  margin-bottom: 11px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  color: var(--nexus-text);
+  cursor: pointer;
+  list-style: none;
 }
+
+.channelHeader::-webkit-details-marker { display: none; }
+
+.channelHeader small {
+  display: block;
+  margin-top: 3px;
+  color: var(--nexus-muted);
+  font-size: 11px;
+  font-weight: 400;
+}
+
+.channelHeader > svg { color: var(--nexus-primary-dark); }
+
+.channelArea[open] .channelHeader { margin-bottom: 11px; }
 
 .channelGrid {
   display: grid;

@@ -7,25 +7,28 @@ import { Button, Popover, Flexbox, toast } from '@lobehub/ui';
 import { Calendar, Database, ChevronDown, Download, Upload, Share, CalendarArrowUp, ListTodo } from 'lucide-react';
 import { useState } from 'react';
 import { ExportCalendarModal } from '../Modal/ExportCalendarModal';
-import { ExportTickTickModal } from '../Modal/ExportTickTickModal';
 import { generateCalendarEvents, generateCSVString, generateVoiceCommand } from '@/services/CalendarService';
 import { BangumiItem } from '@/services/bangumiService';
+import { readTimetableDraft, saveTimetableDraft } from '@/lib/timetableDraft';
 
 interface TimetableHeaderProps {
+  userId: number | null;
+  isOwner: boolean;
   onSearch?: (value: string) => void;
   schedules?: BangumiItem[];
-  onSyncData?: (data: BangumiItem[]) => void;
+  onRestoreDraft?: (data: BangumiItem[]) => void;
   onExportTickTick?: () => void;
 }
 
 export default function TimetableHeader({ 
+  userId,
+  isOwner,
   onSearch, 
   schedules = [],
-  onSyncData,
+  onRestoreDraft,
   onExportTickTick
 }: TimetableHeaderProps) {
   const [isExportModalOpen, setIsExportModalOpen] = useState(false);
-  const [isTickTickModalOpen, setIsTickTickModalOpen] = useState(false);
   const [isExportMenuOpen, setIsExportMenuOpen] = useState(false);
   const [isSyncMenuOpen, setIsSyncMenuOpen] = useState(false);
   const [exportData, setExportData] = useState({
@@ -36,34 +39,41 @@ export default function TimetableHeader({
   
   const handleSaveSchedules = () => {
     setIsSyncMenuOpen(false);
+    if (userId === null) {
+      toast.warning('请先登录后保存草稿');
+      return;
+    }
     if (schedules.length === 0) {
       toast.warning('没有可保存的日程');
       return;
     }
     try {
-      localStorage.setItem('aninexus-demo-schedules', JSON.stringify(schedules));
-      toast.success('日程已保存到当前浏览器');
+      saveTimetableDraft(userId, schedules);
+      toast.success('当前计划已保存为本地草稿');
     } catch {
       toast.error('浏览器无法保存这份日程');
     }
   };
 
-  const handleSyncData = () => {
+  const handleRestoreDraft = () => {
     setIsSyncMenuOpen(false);
+    if (userId === null) {
+      toast.warning('请先登录后恢复草稿');
+      return;
+    }
     try {
-      const saved = localStorage.getItem('aninexus-demo-schedules');
+      const saved = readTimetableDraft(userId, isOwner);
       if (!saved) {
-        toast.info('当前浏览器还没有保存过日程');
+        toast.info('当前浏览器还没有保存过草稿');
         return;
       }
-      const parsed: unknown = JSON.parse(saved);
-      if (!Array.isArray(parsed)) {
-        throw new Error('本地日程格式无效');
+      if (!Array.isArray(saved)) {
+        throw new Error('本地草稿格式无效');
       }
-      onSyncData?.(parsed as BangumiItem[]);
-      toast.success('已恢复本地日程');
+      onRestoreDraft?.(saved as BangumiItem[]);
+      toast.success('已恢复本地草稿');
     } catch {
-      toast.error('本地日程数据无法读取');
+      toast.error('本地草稿无法读取');
     }
   };
 
@@ -127,7 +137,7 @@ export default function TimetableHeader({
         }
         centerArea={
           <div style={{ width: '100%', display: 'flex', alignItems: 'center', gap: '16px' }}>
-            {/* 数据同步菜单 */}
+            {/* 本地草稿菜单 */}
             <Popover
               arrow={false}
               placement="bottomLeft"
@@ -145,7 +155,7 @@ export default function TimetableHeader({
                       textTransform: 'uppercase',
                     }}
                   >
-                    本地数据
+                    本地草稿
                   </div>
                   <Flexbox
                     horizontal
@@ -160,7 +170,7 @@ export default function TimetableHeader({
                     onClick={handleSaveSchedules}
                   >
                     <Download size={16} style={{ marginRight: 10 }} />
-                    <span style={{ flex: 1, fontSize: 14 }}>保存到浏览器</span>
+                    <span style={{ flex: 1, fontSize: 14 }}>保存当前草稿</span>
                   </Flexbox>
                   <Flexbox
                     horizontal
@@ -172,16 +182,16 @@ export default function TimetableHeader({
                       transition: 'all 0.2s',
                     }}
                     className="hover:bg-gray-100 dark:hover:bg-gray-800"
-                    onClick={handleSyncData}
+                    onClick={handleRestoreDraft}
                   >
                     <Upload size={16} style={{ marginRight: 10 }} />
-                    <span style={{ flex: 1, fontSize: 14 }}>恢复本地日程</span>
+                    <span style={{ flex: 1, fontSize: 14 }}>恢复本地草稿</span>
                   </Flexbox>
                 </Flexbox>
               }
             >
               <Button icon={<Database size={16} />} style={{ gap: 6 }} type="text">
-                本地数据
+                本地草稿
                 <ChevronDown size={14} style={{ opacity: 0.6 }} />
               </Button>
             </Popover>
@@ -269,11 +279,6 @@ export default function TimetableHeader({
         voiceCommand={exportData.voiceCommand}
       />
       
-      <ExportTickTickModal
-        open={isTickTickModalOpen}
-        onCancel={() => setIsTickTickModalOpen(false)}
-        items={schedules as BangumiItem[]}
-      />
     </div>
   );
 }

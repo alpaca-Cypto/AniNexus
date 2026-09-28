@@ -2,7 +2,7 @@ import { ActionIcon } from '@lobehub/ui';
 import { Popover, Input, Button, Tag } from 'antd';
 import { Search, Star, CheckCircle2 } from 'lucide-react';
 import React, { useState } from 'react';
-import Image from 'next/image';
+import CoverImage from '@/components/media/CoverImage';
 import { searchService, type SearchResult } from '@/services/search';
 
 export interface SearchResultItem {
@@ -69,7 +69,7 @@ export default function SearchTrigger({ onSelect }: SearchTriggerProps) {
             className="chat-demo-search-item"
             onClick={() => { onSelect?.(item); setOpen(false); setKeyword(''); setResults([]); setSearched(false); }}
           >
-            <Image src={item.cover || '/Icon.png'} alt="" width={38} height={52} />
+            <CoverImage src={item.cover || '/Icon.png'} alt="" width={38} height={52} />
             <span><strong>{item.title}</strong><small>{item.tags.slice(0, 3).map((tag) => <Tag key={tag}>{tag}</Tag>)}</small></span>
             <i><Star size={12} fill="currentColor" />{item.score.toFixed(1)}{item.hasCollection && <CheckCircle2 size={13} />}</i>
           </button>

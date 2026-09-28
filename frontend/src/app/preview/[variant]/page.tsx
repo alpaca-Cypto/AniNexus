@@ -80,9 +80,9 @@ const schedule = [
 
 const tools = [
   { href: "/collections", icon: Library, title: "收藏库", copy: "管理想看、在看与已完成" },
-  { href: "/Timetable", icon: CalendarDays, title: "追番日历", copy: "按播出时间安排本周观看" },
+  { href: "/timetable", icon: CalendarDays, title: "追番计划", copy: "按播出时间安排本周观看" },
   { href: "/assistant", icon: Bot, title: "动漫助手", copy: "比较作品并获取具体推荐" },
-  { href: "/Personal", icon: UserRound, title: "个人画像", copy: "查看偏好与推荐依据" },
+  { href: "/personal", icon: UserRound, title: "我的空间", copy: "管理收藏与追番计划" },
 ];
 
 export function generateStaticParams() {
@@ -105,12 +105,12 @@ export default async function SeasonalPreview({ params }: { params: Promise<{ va
         <nav className="season-nav" aria-label="预览主导航">
           <a href="#discover">发现</a>
           <Link href="/collections">收藏库</Link>
-          <Link href="/Timetable">追番日历</Link>
+          <Link href="/timetable">追番计划</Link>
           <Link href="/assistant">AI 助手</Link>
         </nav>
         <div className="season-header-actions">
           <button className="season-search" aria-label="搜索作品"><Search size={19} /></button>
-          <Link className="season-profile" href="/Personal"><UserRound size={17} /> 我的空间</Link>
+          <Link className="season-profile" href="/personal"><UserRound size={17} /> 我的空间</Link>
           <button className="season-menu" aria-label="打开菜单"><Menu size={21} /></button>
         </div>
       </header>
@@ -171,7 +171,7 @@ export default async function SeasonalPreview({ params }: { params: Promise<{ va
           <div className="season-schedule">
             <div className="season-section-heading">
               <div><p>今天 · 周三</p><h3>今晚放送</h3></div>
-              <Link href="/Timetable">完整日历 <ArrowRight size={15} /></Link>
+              <Link href="/timetable">完整日历 <ArrowRight size={15} /></Link>
             </div>
             <div className="season-timeline">
               {schedule.map((item) => (

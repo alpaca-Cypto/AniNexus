@@ -1,9 +1,11 @@
 "use client";
 
 import { toast } from '@lobehub/ui';
-import { Button, Input, Modal, Segmented } from 'antd';
-import { Check, LogIn, LogOut, RefreshCw, ShieldCheck, UserPlus } from 'lucide-react';
+import { Button, Dropdown, Input, Modal, Segmented } from 'antd';
+import type { MenuProps } from 'antd';
+import { Bot, Check, ChevronDown, Download, KeyRound, LogIn, LogOut, RefreshCw, ShieldCheck, Trash2, UserRound, UserPlus } from 'lucide-react';
 import Image from 'next/image';
+import Link from 'next/link';
 import { FormEvent, useCallback, useEffect, useMemo, useState } from 'react';
 import {
   accountService,
@@ -13,6 +15,7 @@ import {
 } from '@/services/account';
 import { USER_AVATAR_UPDATED_EVENT } from '@/services/profile';
 import { UserAvatarUpload } from '@/components/profile/UserAvatarUpload';
+import ApiKeyModal from '@/components/Modal/ApiKeyModal';
 
 type AuthMode = 'login' | 'register';
 
@@ -24,10 +27,22 @@ export function AuthControl() {
   const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
+  const [inviteCode, setInviteCode] = useState('');
+  const [inviteRequired, setInviteRequired] = useState(false);
   const [captchaCode, setCaptchaCode] = useState('');
   const [captcha, setCaptcha] = useState<CaptchaChallenge | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [captchaLoading, setCaptchaLoading] = useState(false);
+  const [apiSettingsOpen, setApiSettingsOpen] = useState(false);
+  const [deleteOpen, setDeleteOpen] = useState(false);
+  const [deletePassword, setDeletePassword] = useState('');
+  const [deleteSubmitting, setDeleteSubmitting] = useState(false);
+
+  useEffect(() => {
+    void accountService.config()
+      .then((config) => setInviteRequired(config.invite_required))
+      .catch(() => setInviteRequired(false));
+  }, []);
 
   useEffect(() => {
     let active = true;
@@ -81,6 +96,7 @@ export function AuthControl() {
     setPassword('');
     setConfirmPassword('');
     setCaptchaCode('');
+    setInviteCode('');
   };
 
   const handleSubmit = async (event: FormEvent) => {
@@ -104,7 +120,7 @@ export function AuthControl() {
       };
       const result = mode === 'login'
         ? await accountService.login(credentials)
-        : await accountService.register(credentials);
+        : await accountService.register({ ...credentials, invite_code: inviteCode.trim() });
       localStorage.removeItem('token');
       setUser(result.user);
       setOpen(false);
@@ -135,6 +151,79 @@ export function AuthControl() {
     toast.success('已退出登录');
   };
 
+  const handleExport = async () => {
+    try {
+      const data = await accountService.exportCollections();
+      const url = URL.createObjectURL(new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' }));
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `aninexus-collections-${new Date().toISOString().slice(0, 10)}.json`;
+      link.click();
+      URL.revokeObjectURL(url);
+      toast.success('收藏数据已导出');
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : '导出失败');
+    }
+  };
+
+  const handleDeleteAccount = async (event: FormEvent) => {
+    event.preventDefault();
+    try {
+      setDeleteSubmitting(true);
+      await accountService.deleteAccount(deletePassword);
+      localStorage.removeItem('token');
+      setUser(null);
+      setDeleteOpen(false);
+      setDeletePassword('');
+      window.dispatchEvent(new CustomEvent(AUTH_CHANGED_EVENT, { detail: null }));
+      window.dispatchEvent(new CustomEvent(USER_AVATAR_UPDATED_EVENT, { detail: null }));
+      toast.success('账号与个人数据已删除');
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : '注销失败');
+    } finally {
+      setDeleteSubmitting(false);
+    }
+  };
+
+  const accountMenuItems: MenuProps['items'] = [
+    {
+      key: 'profile',
+      icon: <UserRound size={15} />,
+      label: <Link href="/personal">我的空间</Link>,
+    },
+    ...(user?.is_owner ? [{
+      key: 'ai-settings',
+      icon: <UserRound size={15} />,
+      label: <Link href="/personal/ai">AI 角色设置</Link>,
+    }, {
+      key: 'assistant',
+      icon: <Bot size={15} />,
+      label: <Link href="/assistant">打开 AI 助手</Link>,
+    }, {
+      key: 'api',
+      icon: <KeyRound size={15} />,
+      label: 'API 管理',
+    }, { type: 'divider' as const }] : []),
+    {
+      key: 'export',
+      icon: <Download size={15} />,
+      label: '导出收藏',
+    },
+    {
+      key: 'delete-account',
+      danger: true,
+      icon: <Trash2 size={15} />,
+      label: '注销账号',
+    },
+    { type: 'divider' },
+    {
+      key: 'logout',
+      danger: true,
+      icon: <LogOut size={15} />,
+      label: '退出登录',
+    },
+  ];
+
   if (checking) return <span className="site-header__auth-skeleton" aria-label="检查登录状态" />;
 
   return (
@@ -142,15 +231,23 @@ export function AuthControl() {
       {user ? (
         <div className="site-header__account">
           <UserAvatarUpload label={user.username} />
-          <button
-            aria-label="退出登录"
-            className="site-header__logout-button"
-            onClick={handleLogout}
-            title="退出登录"
-            type="button"
+          <Dropdown
+            menu={{
+              items: accountMenuItems,
+              onClick: ({ key }) => {
+                if (key === 'api') setApiSettingsOpen(true);
+                if (key === 'export') void handleExport();
+                if (key === 'delete-account') setDeleteOpen(true);
+                if (key === 'logout') void handleLogout();
+              },
+            }}
+            placement="bottomRight"
+            trigger={['click']}
           >
-            <LogOut size={15} aria-hidden="true" />
-          </button>
+            <button aria-label="打开账户菜单" className="site-header__account-menu-button" type="button">
+              <ChevronDown size={15} aria-hidden="true" />
+            </button>
+          </Dropdown>
         </div>
       ) : (
         <button
@@ -229,6 +326,19 @@ export function AuthControl() {
 
           {mode === 'register' && (
             <>
+              {inviteRequired && (
+                <label className="auth-field">
+                  <span>邀请码</span>
+                  <Input
+                    autoComplete="off"
+                    onChange={(event) => setInviteCode(event.target.value)}
+                    placeholder="输入收到的内测邀请码"
+                    required
+                    size="large"
+                    value={inviteCode}
+                  />
+                </label>
+              )}
               <div className="auth-password-rules" aria-label="密码要求">
                 {[
                   ['length', '至少 8 位'],
@@ -303,6 +413,31 @@ export function AuthControl() {
           </Button>
         </form>
       </Modal>
+      <Modal
+        centered
+        footer={null}
+        onCancel={() => { setDeleteOpen(false); setDeletePassword(''); }}
+        open={deleteOpen}
+        title="注销账号"
+        width={400}
+      >
+        <form className="auth-dialog" onSubmit={handleDeleteAccount}>
+          <p>注销会删除你的收藏、聊天和其他个人数据，操作不可撤销。建议先导出收藏。</p>
+          <label className="auth-field">
+            <span>输入当前密码以确认</span>
+            <Input.Password
+              autoComplete="current-password"
+              onChange={(event) => setDeletePassword(event.target.value)}
+              required
+              value={deletePassword}
+            />
+          </label>
+          <Button block danger htmlType="submit" loading={deleteSubmitting}>
+            确认注销并删除数据
+          </Button>
+        </form>
+      </Modal>
+      <ApiKeyModal open={apiSettingsOpen} onClose={() => setApiSettingsOpen(false)} />
     </>
   );
 }

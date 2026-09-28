@@ -90,13 +90,13 @@ export function UserAvatarUpload({ label = '我的空间' }: { label?: string })
         type="file"
       />
       <Link
-        aria-current={pathname === '/Personal' ? 'page' : undefined}
+        aria-current={pathname.startsWith('/personal') ? 'page' : undefined}
         className={
-          pathname === '/Personal'
+          pathname.startsWith('/personal')
             ? 'site-header__profile-link active'
             : 'site-header__profile-link'
         }
-        href="/Personal"
+        href="/personal"
       >
         {label}
       </Link>

@@ -19,6 +19,11 @@ export interface CollectionSyncResponse {
   source: string;
 }
 
+export interface BangumiTokenStatus {
+  configured: boolean;
+  username: string | null;
+}
+
 // 收藏项类型
 export interface CollectionItem {
   id: string;
@@ -36,6 +41,10 @@ export interface CollectionItem {
 export interface CollectionListResponse {
   total: number;
   items: Array<SearchResult & { collection: Collection }>;
+}
+
+export interface CollectionStatusResponse {
+  subject_ids: number[];
 }
 
 export interface CollectionSaveRequest {
@@ -89,6 +98,16 @@ export interface DoubanUploadRequest {
 
 // 收藏服务
 export const collectionService = {
+  async getCollectionStatuses(subjectIds: number[]): Promise<CollectionStatusResponse> {
+    const params = new URLSearchParams();
+    subjectIds.forEach((id) => params.append('subject_ids', String(id)));
+    return request<CollectionStatusResponse>(`/collections/status?${params.toString()}`);
+  },
+
+  async getCollection(subjectId: number): Promise<SearchResult> {
+    return request<SearchResult>(`/collections/${subjectId}`);
+  },
+
   // 保存单个条目及其收藏状态，存在时更新，不存在时创建
   async saveCollection(data: CollectionSaveRequest): Promise<CollectionSaveResponse> {
     return request<CollectionSaveResponse>('/collections', {
@@ -102,6 +121,28 @@ export const collectionService = {
     return request<CollectionSyncResponse>('/collections/sync/bgm', {
       method: 'POST',
       body: JSON.stringify(data),
+    });
+  },
+
+  async getBangumiTokenStatus(): Promise<BangumiTokenStatus> {
+    return request<BangumiTokenStatus>('/collections/import/bangumi/token');
+  },
+
+  async saveBangumiToken(accessToken: string): Promise<BangumiTokenStatus> {
+    return request<BangumiTokenStatus>('/collections/import/bangumi/token', {
+      method: 'PUT',
+      body: JSON.stringify({ access_token: accessToken }),
+    });
+  },
+
+  async deleteBangumiToken(): Promise<void> {
+    return request<void>('/collections/import/bangumi/token', { method: 'DELETE' });
+  },
+
+  async importBangumi(accessToken: string | null, subjectType: number | null): Promise<CollectionSyncResponse> {
+    return request<CollectionSyncResponse>('/collections/import/bangumi', {
+      method: 'POST',
+      body: JSON.stringify({ ...(accessToken ? { access_token: accessToken } : {}), subject_type: subjectType }),
     });
   },
 
