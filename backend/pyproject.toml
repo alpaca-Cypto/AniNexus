@@ -8,6 +8,8 @@ version = "0.1.0"
 description = "AniNexus backend and legacy catalog import tools"
 requires-python = ">=3.12"
 dependencies = [
+  "alembic>=1.16,<2.0",
+  "cryptography>=45,<47",
   "fastapi>=0.115,<1.0",
   "SQLAlchemy>=2.0,<3.0",
   "PyMySQL>=1.1,<2.0",
@@ -24,11 +26,15 @@ dev = [
 [project.scripts]
 aninexus-import-search-manga = "aninexus_backend.importers.search_manga:main"
 aninexus-export-public-data = "aninexus_backend.importers.export_public_catalog:main"
+aninexus-export-existing-catalog = "aninexus_backend.importers.export_existing_catalog:main"
+aninexus-transfer-external-links = "aninexus_backend.importers.transfer_external_links:main"
 aninexus-import-public-data = "aninexus_backend.importers.public_catalog:main"
 aninexus-convert-bangumi-archive = "aninexus_backend.importers.bangumi_archive:main"
+aninexus-refresh-bangumi = "aninexus_backend.importers.refresh_bangumi:main"
 aninexus-plan-bangumi-matches = "aninexus_backend.importers.match_bangumi_catalog:main"
 aninexus-apply-bangumi-matches = "aninexus_backend.importers.apply_bangumi_matches:main"
 aninexus-api = "aninexus_backend.main:run"
+aninexus-invite-codes = "aninexus_backend.invite_codes:main"
 
 [tool.setuptools.packages.find]
 where = ["src"]

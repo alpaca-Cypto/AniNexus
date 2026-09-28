@@ -11,7 +11,7 @@ from pydantic import BaseModel, ConfigDict, Field
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from aninexus_backend.api.dependencies import current_user_id
+from aninexus_backend.api.dependencies import current_user_id, owner_user_id
 from aninexus_backend.assistant import TOOL_DEFINITIONS, execute_tool
 from aninexus_backend.assistant.llm import (
     ModelRequestError,
@@ -23,7 +23,7 @@ from aninexus_backend.assistant.llm import (
 from aninexus_backend.db import get_session
 from aninexus_backend.models import ChatMessage
 
-router = APIRouter(tags=["assistant"])
+router = APIRouter(tags=["assistant"], dependencies=[Depends(owner_user_id)])
 
 SYSTEM_PROMPT = """你是 AniNexus 的动漫收藏助手。
 你可以调用只读工具查询当前用户的本地收藏和公共作品库。

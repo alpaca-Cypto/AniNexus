@@ -3,7 +3,7 @@ from __future__ import annotations
 from datetime import date as Date
 from datetime import time
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, SecretStr
 
 
 class CollectionUpsert(BaseModel):
@@ -47,6 +47,16 @@ class BangumiCollectionSync(BaseModel):
 
     subject_type: int | None = Field(default=2, ge=1)
     collection_type: int | None = Field(default=None, ge=1, le=5)
+
+
+class BangumiTokenImport(BangumiCollectionSync):
+    access_token: SecretStr | None = None
+
+
+class BangumiTokenSave(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    access_token: SecretStr = Field(min_length=1, max_length=4096)
 
 
 class ScheduleUpsert(BaseModel):

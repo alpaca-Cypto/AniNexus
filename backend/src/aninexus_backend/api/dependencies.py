@@ -1,7 +1,7 @@
 from datetime import UTC, datetime
 from typing import Annotated
 
-from fastapi import Header, HTTPException, Request, status
+from fastapi import Depends, Header, HTTPException, Request, status
 
 from aninexus_backend.auth import token_digest
 from aninexus_backend.models import AuthSession
@@ -48,3 +48,14 @@ def current_user_id(
                 headers={"WWW-Authenticate": "Bearer"},
             )
         return auth_session.user_id
+
+
+def owner_user_id(
+    request: Request,
+    user_id: Annotated[int, Depends(current_user_id)],
+) -> int:
+    if request.app.state.testing_auth_bypass:
+        return user_id
+    if request.app.state.settings.owner_user_id != user_id:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="仅站点所有者可使用")
+    return user_id

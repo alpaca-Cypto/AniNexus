@@ -5,12 +5,20 @@ from pathlib import Path
 import pytest
 
 from aninexus_backend.importers.public_catalog import (
+    build_parser,
     deserialize_subject,
     iter_public_bundle,
     serialize_subject,
     sha256_file,
     write_public_bundle,
 )
+
+
+def test_import_can_require_an_existing_migrated_schema() -> None:
+    args = build_parser().parse_args(["--skip-create-database", "--skip-create-tables"])
+
+    assert args.skip_create_database is True
+    assert args.skip_create_tables is True
 
 
 def sample_subject() -> dict:

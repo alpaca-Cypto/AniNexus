@@ -7,7 +7,9 @@ WORKDIR /app
 
 COPY pyproject.toml README.md ./
 COPY src ./src
-RUN pip install --no-cache-dir .
+COPY alembic.ini ./
+COPY migrations ./migrations
+RUN --mount=type=cache,target=/root/.cache/pip pip install --timeout 120 --retries 5 .
 
 EXPOSE 8000
 

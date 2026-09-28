@@ -10,11 +10,12 @@ from typing import Annotated
 
 from fastapi import APIRouter, Depends, Header, HTTPException, Request, Response, status
 from pydantic import BaseModel, ConfigDict, Field, field_validator
-from sqlalchemy import delete, select
+from sqlalchemy import delete, select, update
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from aninexus_backend.api.dependencies import current_user_id
+from aninexus_backend.api.serializers import serialize_collection
 from aninexus_backend.auth import (
     hash_captcha,
     hash_password,
@@ -24,7 +25,19 @@ from aninexus_backend.auth import (
     verify_password,
 )
 from aninexus_backend.db import get_session
-from aninexus_backend.models import AuthSession, CaptchaChallenge, User
+from aninexus_backend.models import (
+    AuthSession,
+    BangumiCredential,
+    CaptchaChallenge,
+    ChatMessage,
+    Collection,
+    InviteCode,
+    Schedule,
+    UpdateReminder,
+    User,
+    UserProfile,
+)
+from aninexus_backend.rate_limit import enforce_rate_limit
 
 router = APIRouter(prefix="/auth", tags=["auth"])
 CAPTCHA_ALPHABET = "23456789ABCDEFGHJKLMNPQRSTUVWXYZ"
@@ -49,6 +62,8 @@ class Credentials(BaseModel):
 
 
 class RegisterRequest(Credentials):
+    invite_code: str = Field(default="", max_length=100)
+
     @field_validator("password")
     @classmethod
     def validate_password_strength(cls, value: str) -> str:
@@ -61,11 +76,18 @@ class RegisterRequest(Credentials):
         return value
 
 
-def _user_payload(user: User) -> dict[str, str | int]:
+class DeleteAccountRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    password: str = Field(min_length=1)
+
+
+def _user_payload(user: User, owner_user_id: int | None = None) -> dict[str, str | int | bool]:
     return {
         "id": user.id,
         "username": user.username,
         "created_at": user.created_at.isoformat(),
+        "is_owner": user.id == owner_user_id,
     }
 
 
@@ -116,6 +138,7 @@ def _create_session(
     user: User,
     response: Response,
     secure_cookie: bool,
+    owner_user_id: int | None = None,
 ) -> dict[str, object]:
     token, digest = new_session_token()
     session.add(
@@ -135,14 +158,26 @@ def _create_session(
         samesite="lax",
         path="/",
     )
-    return {"access_token": token, "token_type": "bearer", "user": _user_payload(user)}
+    return {
+        "user": _user_payload(user, owner_user_id),
+    }
+
+
+@router.get("/config")
+def auth_config(request: Request) -> dict[str, bool]:
+    return {
+        "invite_required": request.app.state.settings.registration_invite_required,
+        "bangumi_sync_enabled": request.app.state.settings.bangumi_sync_enabled,
+    }
 
 
 @router.post("/captcha")
 def create_captcha(
+    request: Request,
     response: Response,
     session: Annotated[Session, Depends(get_session)],
 ) -> dict[str, str | int]:
+    enforce_rate_limit(request, "captcha", limit=120, window_seconds=300)
     now = datetime.now(UTC).replace(tzinfo=None)
     session.execute(delete(CaptchaChallenge).where(CaptchaChallenge.expires_at <= now))
     code = "".join(secrets.choice(CAPTCHA_ALPHABET) for _ in range(5))
@@ -171,7 +206,22 @@ def register(
     response: Response,
     session: Annotated[Session, Depends(get_session)],
 ) -> dict[str, object]:
+    enforce_rate_limit(request, "register", limit=30, window_seconds=300)
     _consume_captcha(session, payload.captcha_id, payload.captcha_code)
+    invite = None
+    if request.app.state.settings.registration_invite_required:
+        invite_code = payload.invite_code.strip()
+        if not invite_code:
+            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="需要邀请码")
+        invite = session.get(
+            InviteCode, token_digest(invite_code), with_for_update=True
+        )
+        if (
+            invite is None
+            or invite.used_at is not None
+            or invite.expires_at <= datetime.now(UTC).replace(tzinfo=None)
+        ):
+            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="邀请码无效或已过期")
     user = User(
         username=payload.username,
         username_key=payload.username.casefold(),
@@ -179,6 +229,10 @@ def register(
     )
     session.add(user)
     try:
+        session.flush()
+        if invite is not None:
+            invite.used_by = user.id
+            invite.used_at = datetime.now(UTC).replace(tzinfo=None)
         session.commit()
     except IntegrityError as exc:
         session.rollback()
@@ -187,7 +241,11 @@ def register(
             detail="这个用户名已被使用",
         ) from exc
     session.refresh(user)
-    return _create_session(session, user, response, request.url.scheme == "https")
+    return _create_session(
+        session, user, response,
+        request.app.state.settings.session_cookie_secure or request.url.scheme == "https",
+        request.app.state.settings.owner_user_id,
+    )
 
 
 @router.post("/login")
@@ -197,6 +255,7 @@ def login(
     response: Response,
     session: Annotated[Session, Depends(get_session)],
 ) -> dict[str, object]:
+    enforce_rate_limit(request, "login", limit=60, window_seconds=300)
     _consume_captcha(session, payload.captcha_id, payload.captcha_code)
     username = unicodedata.normalize("NFKC", payload.username).strip().casefold()
     user = session.scalar(select(User).where(User.username_key == username))
@@ -205,18 +264,67 @@ def login(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="用户名或密码错误",
         )
-    return _create_session(session, user, response, request.url.scheme == "https")
+    return _create_session(
+        session, user, response,
+        request.app.state.settings.session_cookie_secure or request.url.scheme == "https",
+        request.app.state.settings.owner_user_id,
+    )
 
 
 @router.get("/me")
 def get_me(
+    request: Request,
     session: Annotated[Session, Depends(get_session)],
     user_id: Annotated[int, Depends(current_user_id)],
-) -> dict[str, str | int]:
+) -> dict[str, str | int | bool]:
     user = session.get(User, user_id)
     if user is None:
         raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="登录已失效")
-    return _user_payload(user)
+    return _user_payload(user, request.app.state.settings.owner_user_id)
+
+
+@router.get("/export")
+def export_account(
+    session: Annotated[Session, Depends(get_session)],
+    user_id: Annotated[int, Depends(current_user_id)],
+) -> dict[str, object]:
+    user = session.get(User, user_id)
+    if user is None:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="登录已失效")
+    collections = session.scalars(
+        select(Collection)
+        .where(Collection.user_id == user_id)
+        .order_by(Collection.id.asc())
+    ).unique()
+    return {
+        "format": "aninexus-collections-v1",
+        "username": user.username,
+        "exported_at": datetime.now(UTC).isoformat(),
+        "collections": [serialize_collection(item) for item in collections],
+    }
+
+
+@router.delete("/me", status_code=status.HTTP_204_NO_CONTENT)
+def delete_account(
+    payload: DeleteAccountRequest,
+    response: Response,
+    session: Annotated[Session, Depends(get_session)],
+    user_id: Annotated[int, Depends(current_user_id)],
+) -> None:
+    user = session.get(User, user_id)
+    if user is None or not verify_password(payload.password, user.password_hash):
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="密码错误")
+    session.execute(delete(ChatMessage).where(ChatMessage.user_id == user_id))
+    session.execute(delete(Collection).where(Collection.user_id == user_id))
+    session.execute(delete(Schedule).where(Schedule.user_id == user_id))
+    session.execute(delete(UpdateReminder).where(UpdateReminder.user_id == user_id))
+    session.execute(delete(UserProfile).where(UserProfile.user_id == user_id))
+    session.execute(update(InviteCode).where(InviteCode.used_by == user_id).values(used_by=None))
+    session.execute(delete(BangumiCredential).where(BangumiCredential.user_id == user_id))
+    session.execute(delete(AuthSession).where(AuthSession.user_id == user_id))
+    session.delete(user)
+    session.commit()
+    response.delete_cookie("aninexus_session", path="/", samesite="lax")
 
 
 @router.post("/logout", status_code=status.HTTP_204_NO_CONTENT)

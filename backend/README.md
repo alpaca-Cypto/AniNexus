@@ -11,6 +11,19 @@ and personalized recommendations. Model calls use an OpenAI-compatible chat
 completions endpoint while collection access remains server-side and scoped to
 the current user.
 
+Bangumi collection import can save a user's Access Token for later imports.
+`PUT /api/v1/collections/import/bangumi/token` validates the token with Bangumi
+and stores only encrypted ciphertext. `GET` on the same path reports whether a
+token is saved and the Bangumi username; `DELETE` removes it. Import with
+`POST /api/v1/collections/import/bangumi` and no `access_token` to use the saved
+token, or supply an `access_token` for a one-time import. Tokens are scoped to
+the signed-in AniNexus user and removed on account deletion. The encryption
+secret comes from `BANGUMI_TOKEN_KEY_FILE`, falling back to
+`DATABASE_PASSWORD_FILE` in the production Compose setup. Local development
+using `DATABASE_URL` should set `BANGUMI_TOKEN_KEY_FILE` to a stable private
+file containing at least 32 random bytes. Preserve that file across database
+restores; changing it makes previously saved tokens unreadable.
+
 ## Run the API
 
 After configuring `backend/.env`:
@@ -38,9 +51,23 @@ existing MAL catalog available while Bangumi data is imported. Set
 `CATALOG_SOURCE_MODE=bangumi` only after the Bangumi catalog has been populated;
 the frontend continues to use the same `/api/v1/subjects` interface in either mode.
 
-Authentication is deliberately not finalized yet. During local development,
-requests use user `1` unless `X-AniNexus-User-Id` is supplied. Do not expose
-this development mode directly to the public internet.
+Authentication uses an HttpOnly same-site session cookie. Development's
+`X-AniNexus-User-Id` bypass is enabled only for the in-memory test database;
+ordinary API deployments require login. For the production Compose setup,
+registration requires a single-use invite code, AI endpoints require
+`OWNER_USER_ID`, and shared Bangumi collection sync is disabled. See
+`../docs/production-deployment.md` for deployment gates.
+
+Production schema changes use Alembic migrations, not `create_all`:
+
+```powershell
+cd backend
+..\.venv\Scripts\python.exe -m alembic upgrade head
+```
+
+Set `DATABASE_URL` or `DATABASE_PASSWORD_FILE` first. Existing databases
+created through `create_all` require a verified baseline before stamping the
+initial revision; do not run the initial migration against already-created tables.
 
 ## Docker
 
@@ -50,13 +77,49 @@ The repository Compose file pins MySQL and runs the API:
 docker compose up -d mysql backend
 ```
 
-After placing a published catalog archive in `backend/data`, import it with:
+After placing a verified catalog archive at
+`backend/data/aninexus-public-catalog.jsonl.gz`, validate it and import it with
+the production Compose profile:
 
 ```powershell
-docker compose --profile import run --rm catalog-import
+docker compose --env-file .env.production.local -f compose.production.yaml `
+  run --rm catalog-import aninexus-import-public-data `
+  --source /catalog/aninexus-public-catalog.jsonl.gz --dry-run `
+  --skip-create-database --skip-create-tables
+docker compose --env-file .env.production.local -f compose.production.yaml `
+  run --rm catalog-import
 ```
 
+The import profile does not start with the normal services. Back up the target
+database before the write step. Do not reuse an old Bangumi match plan against
+a newly initialized database; regenerate it for the current catalog.
+
+To seed a fresh local deployment from another AniNexus database instead of
+`anime_explorer`, use `aninexus-export-existing-catalog --kind anime|manga|all`.
+The default remains `anime`; each kind excludes records marked NSFW and all
+personal data.
+The separate `aninexus-transfer-external-links export` command captures public
+provider links by stable subject identity; after catalog import, run its
+`import --dry-run` and then `import` with the bundle's SHA-256. The transfer
+does not include accounts, collections, chats, or old auto-increment IDs. Keep
+these locally generated bundles private until their source terms are reviewed.
+
 ## Bangumi Archive conversion
+
+The production `bangumi-refresh` service runs once at startup and then every
+24 hours. It reads the public Bangumi calendar, active (`wish`/`doing`)
+collections with Bangumi IDs, and recent local Bangumi anime. Each run is
+capped at 200 subjects and spaces API requests. It updates Bangumi catalog
+rows, links uniquely matching legacy rows without replacing their fields, and
+skips ambiguous matches and NSFW entries. Personal collection state is not
+changed. Run it once manually with:
+
+```powershell
+docker compose --env-file .env.production.local -f compose.production.yaml -f compose.production.local-secrets.yaml run --rm bangumi-refresh aninexus-refresh-bangumi --limit 200
+```
+
+Check `bangumi-refresh` logs for created, updated, linked, review, skipped,
+and failed counts. This targeted refresh does not replace a full Archive import.
 
 Convert the official Bangumi Archive `subject.jsonlines` into AniNexus's
 validated public bundle before importing it. Omitting `--output` performs a
@@ -234,6 +297,13 @@ Send `POST /api/v1/collections/sync/bgm` with
 `{"subject_type": 2}` to import every anime collection from the connected
 Bangumi account. The endpoint follows all upstream result pages and safely
 upserts subjects and the local user's collection state.
+
+For multi-user deployments, each signed-in user can import their own collections
+from the collection page with a Bangumi Access Token. The matching API is
+`POST /api/v1/collections/import/bangumi` with
+`{"access_token": "...", "subject_type": null}`. Use `2` for anime only.
+The token is used for this request and is not stored. This personal import
+works when the shared `BANGUMI_SYNC_ENABLED` setting is false.
 
 Set `BANGUMI_USER_AGENT` to a deployment-specific identifier before a public
 deployment.

@@ -6,6 +6,7 @@ from pathlib import Path
 from typing import Literal
 
 from dotenv import load_dotenv
+from sqlalchemy.engine import URL
 
 BACKEND_ROOT = Path(__file__).resolve().parents[2]
 load_dotenv(BACKEND_ROOT / ".env")
@@ -26,10 +27,26 @@ class Settings:
     assistant_provider: str
     assistant_model: str
     assistant_endpoint: str | None
+    session_cookie_secure: bool
+    registration_invite_required: bool
+    owner_user_id: int | None
+    bangumi_sync_enabled: bool
 
     @classmethod
     def from_environment(cls) -> Settings:
         database_url = os.getenv("DATABASE_URL", "").strip()
+        if not database_url:
+            password_file = os.getenv("DATABASE_PASSWORD_FILE", "").strip()
+            if password_file:
+                database_url = URL.create(
+                    drivername="mysql+pymysql",
+                    username=os.getenv("DATABASE_USER", "aninexus"),
+                    password=Path(password_file).read_text(encoding="utf-8").strip(),
+                    host=os.getenv("DATABASE_HOST", "mysql"),
+                    port=int(os.getenv("DATABASE_PORT", "3306")),
+                    database=os.getenv("DATABASE_NAME", "aninexus"),
+                    query={"charset": "utf8mb4"},
+                ).render_as_string(hide_password=False)
         legacy_database_url = os.getenv("LEGACY_DATABASE_URL", "").strip() or None
         batch_size = int(os.getenv("IMPORT_BATCH_SIZE", "1000"))
         catalog_source_mode = os.getenv("CATALOG_SOURCE_MODE", "mixed").strip().lower()
@@ -88,4 +105,16 @@ class Settings:
             assistant_provider=os.getenv("AI_ASSISTANT_PROVIDER", "deepseek").strip(),
             assistant_model=os.getenv("AI_ASSISTANT_MODEL", "deepseek-chat").strip(),
             assistant_endpoint=os.getenv("AI_ASSISTANT_ENDPOINT", "").strip() or None,
+            session_cookie_secure=os.getenv("SESSION_COOKIE_SECURE", "false").lower()
+            in {"1", "true", "yes", "on"},
+            registration_invite_required=os.getenv(
+                "REGISTRATION_INVITE_REQUIRED", "false"
+            ).lower() in {"1", "true", "yes", "on"},
+            owner_user_id=(
+                int(os.environ["OWNER_USER_ID"])
+                if os.getenv("OWNER_USER_ID", "").strip()
+                else None
+            ),
+            bangumi_sync_enabled=os.getenv("BANGUMI_SYNC_ENABLED", "true").lower()
+            in {"1", "true", "yes", "on"},
         )

@@ -184,6 +184,11 @@ def build_parser() -> argparse.ArgumentParser:
         action="store_true",
         help="require the configured target database to exist already",
     )
+    parser.add_argument(
+        "--skip-create-tables",
+        action="store_true",
+        help="require an existing migrated schema instead of creating tables",
+    )
     return parser
 
 
@@ -202,7 +207,7 @@ def main() -> None:
         ensure_mysql_database(settings.database_url)
     target_engine = build_engine(settings.database_url)
     try:
-        if not args.dry_run:
+        if not args.dry_run and not args.skip_create_tables:
             Base.metadata.create_all(target_engine)
         count = import_public_bundle(
             source,

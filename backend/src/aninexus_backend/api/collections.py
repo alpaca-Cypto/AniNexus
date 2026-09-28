@@ -1,21 +1,24 @@
 from datetime import date, datetime
 from decimal import Decimal, InvalidOperation
-from typing import Annotated, Any
+from typing import Annotated, Any, Literal
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
 from sqlalchemy import func, or_, select
 from sqlalchemy.orm import Session
 
-from aninexus_backend.api.bangumi import fetch_user_collections
+from aninexus_backend.api.bangumi import fetch_current_profile, fetch_user_collections
 from aninexus_backend.api.dependencies import current_user_id
 from aninexus_backend.api.schemas import (
     BangumiCollectionSync,
+    BangumiTokenImport,
+    BangumiTokenSave,
     CollectionSave,
     CollectionUpsert,
 )
 from aninexus_backend.api.serializers import serialize_collection, serialize_subject
+from aninexus_backend.bangumi_credentials import decrypt_token, encrypt_token
 from aninexus_backend.db import get_session
-from aninexus_backend.models import Collection, Subject
+from aninexus_backend.models import BangumiCredential, Collection, Subject, SubjectExternalId
 
 router = APIRouter(prefix="/collections", tags=["collections"])
 
@@ -116,11 +119,100 @@ def sync_bangumi_collections(
     session: Annotated[Session, Depends(get_session)],
     user_id: Annotated[int, Depends(current_user_id)],
 ) -> dict:
+    if not request.app.state.settings.bangumi_sync_enabled:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="收藏同步暂未开放")
     username, records = fetch_user_collections(
         request.app.state.settings,
         subject_type=payload.subject_type,
         collection_type=payload.collection_type,
     )
+    return _import_bangumi_records(session, user_id, username, records, payload.subject_type)
+
+
+@router.post("/import/bangumi")
+def import_bangumi_collections(
+    payload: BangumiTokenImport,
+    request: Request,
+    session: Annotated[Session, Depends(get_session)],
+    user_id: Annotated[int, Depends(current_user_id)],
+) -> dict:
+    if payload.access_token is None:
+        credential = session.get(BangumiCredential, user_id)
+        if credential is None:
+            raise HTTPException(status.HTTP_400_BAD_REQUEST, "请先保存或输入 Bangumi Access Token")
+        token = decrypt_token(credential.encrypted_token)
+    else:
+        token = _validated_token(payload.access_token.get_secret_value())
+    username, records = fetch_user_collections(
+        request.app.state.settings,
+        access_token=token,
+        subject_type=payload.subject_type,
+        collection_type=payload.collection_type,
+    )
+    return _import_bangumi_records(session, user_id, username, records, payload.subject_type)
+
+
+def _validated_token(value: str) -> str:
+    token = value.strip()
+    if not token or "\n" in token or "\r" in token:
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, "请输入有效的 Bangumi Access Token")
+    return token
+
+
+@router.get("/import/bangumi/token")
+def get_bangumi_token_status(
+    session: Annotated[Session, Depends(get_session)],
+    user_id: Annotated[int, Depends(current_user_id)],
+) -> dict:
+    credential = session.get(BangumiCredential, user_id)
+    return {
+        "configured": credential is not None,
+        "username": credential.bangumi_username if credential else None,
+    }
+
+
+@router.put("/import/bangumi/token")
+def save_bangumi_token(
+    payload: BangumiTokenSave,
+    request: Request,
+    session: Annotated[Session, Depends(get_session)],
+    user_id: Annotated[int, Depends(current_user_id)],
+) -> dict:
+    token = _validated_token(payload.access_token.get_secret_value())
+    profile = fetch_current_profile(request.app.state.settings, access_token=token)
+    username = str(profile["username"])
+    encrypted = encrypt_token(token)
+    credential = session.get(BangumiCredential, user_id)
+    if credential is None:
+        credential = BangumiCredential(
+            user_id=user_id, encrypted_token=encrypted, bangumi_username=username
+        )
+        session.add(credential)
+    else:
+        credential.encrypted_token = encrypted
+        credential.bangumi_username = username
+    session.commit()
+    return {"configured": True, "username": username}
+
+
+@router.delete("/import/bangumi/token", status_code=status.HTTP_204_NO_CONTENT)
+def delete_bangumi_token(
+    session: Annotated[Session, Depends(get_session)],
+    user_id: Annotated[int, Depends(current_user_id)],
+) -> None:
+    credential = session.get(BangumiCredential, user_id)
+    if credential is not None:
+        session.delete(credential)
+        session.commit()
+
+
+def _import_bangumi_records(
+    session: Session,
+    user_id: int,
+    username: str,
+    records: list[dict[str, Any]],
+    subject_type: int | None,
+) -> dict:
     imported = 0
     for record in records:
         remote_subject = record.get("subject")
@@ -139,6 +231,16 @@ def sync_bangumi_collections(
             )
         )
         if subject is None:
+            subject = session.scalar(
+                select(Subject)
+                .join(SubjectExternalId, SubjectExternalId.subject_id == Subject.id)
+                .where(
+                    SubjectExternalId.provider == "bangumi",
+                    SubjectExternalId.external_id == str(remote_id),
+                    SubjectExternalId.subject_type == int(remote_type),
+                )
+            )
+        if subject is None:
             subject = Subject(
                 source="bangumi",
                 source_id=str(remote_id),
@@ -148,30 +250,10 @@ def sync_bangumi_collections(
             session.add(subject)
             session.flush()
 
-        subject.name = str(remote_subject["name"])
-        subject.name_cn = remote_subject.get("name_cn") or None
-        subject.summary = remote_subject.get("short_summary") or remote_subject.get("summary")
-        subject.date = _optional_date(remote_subject.get("date"))
-        subject.platform = remote_subject.get("platform") or None
-        subject.eps = remote_subject.get("eps") or remote_subject.get("total_episodes")
-        subject.volumes = remote_subject.get("volumes")
-        subject.image = _bangumi_image(remote_subject)
-        rating = remote_subject.get("rating")
-        if isinstance(rating, dict):
-            subject.score = _optional_decimal(rating.get("score"))
-        subject.rank = remote_subject.get("rank")
-        collection_stats = remote_subject.get("collection")
-        if isinstance(collection_stats, dict):
-            subject.popularity = collection_stats.get("total")
-        remote_tags = remote_subject.get("tags")
-        if isinstance(remote_tags, list):
-            parsed_tags = [
-                str(tag.get("name") if isinstance(tag, dict) else tag).strip()
-                for tag in remote_tags
-                if (tag.get("name") if isinstance(tag, dict) else tag)
-            ]
-            if parsed_tags:
-                subject.tags = parsed_tags
+        # A mapped MAL subject is the canonical catalog row. Import its personal
+        # collection state without replacing catalog fields from another source.
+        if subject.source == "bangumi":
+            _update_bangumi_subject(subject, remote_subject)
 
         collection = session.scalar(
             select(Collection).where(
@@ -204,9 +286,36 @@ def sync_bangumi_collections(
         "username": username,
         "sync_count": len(records),
         "import_count": imported,
-        "subject_type": payload.subject_type,
+        "subject_type": subject_type,
         "source": "bangumi",
     }
+
+
+def _update_bangumi_subject(subject: Subject, remote_subject: dict[str, Any]) -> None:
+    subject.name = str(remote_subject["name"])
+    subject.name_cn = remote_subject.get("name_cn") or None
+    subject.summary = remote_subject.get("short_summary") or remote_subject.get("summary")
+    subject.date = _optional_date(remote_subject.get("date"))
+    subject.platform = remote_subject.get("platform") or None
+    subject.eps = remote_subject.get("eps") or remote_subject.get("total_episodes")
+    subject.volumes = remote_subject.get("volumes")
+    subject.image = _bangumi_image(remote_subject)
+    rating = remote_subject.get("rating")
+    if isinstance(rating, dict):
+        subject.score = _optional_decimal(rating.get("score"))
+    subject.rank = remote_subject.get("rank")
+    collection_stats = remote_subject.get("collection")
+    if isinstance(collection_stats, dict):
+        subject.popularity = collection_stats.get("total")
+    remote_tags = remote_subject.get("tags")
+    if isinstance(remote_tags, list):
+        parsed_tags = [
+            str(tag.get("name") if isinstance(tag, dict) else tag).strip()
+            for tag in remote_tags
+            if (tag.get("name") if isinstance(tag, dict) else tag)
+        ]
+        if parsed_tags:
+            subject.tags = parsed_tags
 
 
 @router.get("")
@@ -218,6 +327,9 @@ def list_collections(
     keyword: str | None = None,
     limit: Annotated[int, Query(ge=1, le=100)] = 50,
     offset: Annotated[int, Query(ge=0)] = 0,
+    sort_by: Annotated[
+        Literal["updated_at", "score", "date", "rate"], Query()
+    ] = "updated_at",
 ) -> dict:
     filters = [Collection.user_id == user_id]
     if subject_type is not None:
@@ -239,8 +351,16 @@ def list_collections(
     total = session.scalar(
         select(func.count()).select_from(Collection).join(Collection.subject).where(*filters)
     ) or 0
+    orderings = {
+        "updated_at": Collection.updated_at.desc(),
+        "score": Subject.score.desc(),
+        "date": Subject.date.desc(),
+        "rate": Collection.rate.desc(),
+    }
     records = session.scalars(
-        base.order_by(Collection.updated_at.desc()).offset(offset).limit(limit)
+        base.order_by(orderings[sort_by], Collection.id.desc())
+        .offset(offset)
+        .limit(limit)
     ).unique()
     return {
         "total": total,
@@ -251,6 +371,43 @@ def list_collections(
             }
             for record in records
         ],
+    }
+
+
+@router.get("/status")
+def get_collection_statuses(
+    session: Annotated[Session, Depends(get_session)],
+    user_id: Annotated[int, Depends(current_user_id)],
+    subject_ids: Annotated[list[int], Query(min_length=1, max_length=100)],
+) -> dict:
+    saved_ids = session.scalars(
+        select(Collection.subject_id).where(
+            Collection.user_id == user_id,
+            Collection.subject_id.in_(subject_ids),
+        )
+    ).all()
+    return {"subject_ids": saved_ids}
+
+
+@router.get("/{subject_id}")
+def get_collection(
+    subject_id: int,
+    session: Annotated[Session, Depends(get_session)],
+    user_id: Annotated[int, Depends(current_user_id)],
+) -> dict:
+    subject = session.get(Subject, subject_id)
+    if subject is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="作品不存在")
+
+    collection = session.scalar(
+        select(Collection).where(
+            Collection.user_id == user_id,
+            Collection.subject_id == subject_id,
+        )
+    )
+    return {
+        "subject": serialize_subject(subject),
+        "collection": serialize_collection(collection) if collection else None,
     }
 
 

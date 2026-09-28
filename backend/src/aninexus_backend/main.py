@@ -11,6 +11,7 @@ from aninexus_backend import models as models  # noqa: F401
 from aninexus_backend.api.assistant import router as assistant_router
 from aninexus_backend.api.auth import router as auth_router
 from aninexus_backend.api.bangumi import router as bangumi_router
+from aninexus_backend.api.catalog_refresh import router as catalog_refresh_router
 from aninexus_backend.api.collections import router as collections_router
 from aninexus_backend.api.dashboard import router as dashboard_router
 from aninexus_backend.api.health import router as health_router
@@ -20,6 +21,7 @@ from aninexus_backend.api.schedules import router as schedules_router
 from aninexus_backend.api.subjects import router as subjects_router
 from aninexus_backend.config import Settings
 from aninexus_backend.db import Base, build_engine, build_session_factory, ensure_mysql_database
+from aninexus_backend.rate_limit import RateLimiter
 
 
 def create_app(
@@ -52,6 +54,7 @@ def create_app(
         )
         app.state.catalog_source_mode = settings.catalog_source_mode
         app.state.settings = settings
+        app.state.rate_limiter = RateLimiter()
         try:
             yield
         finally:
@@ -66,6 +69,7 @@ def create_app(
     api_prefix = "/api/v1"
     app.include_router(health_router, prefix=api_prefix)
     app.include_router(bangumi_router, prefix=api_prefix)
+    app.include_router(catalog_refresh_router, prefix=api_prefix)
     app.include_router(subjects_router, prefix=api_prefix)
     app.include_router(collections_router, prefix=api_prefix)
     app.include_router(schedules_router, prefix=api_prefix)

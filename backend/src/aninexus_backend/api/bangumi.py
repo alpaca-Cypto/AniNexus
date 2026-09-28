@@ -6,9 +6,10 @@ from urllib.error import HTTPError, URLError
 from urllib.parse import quote, urlencode
 from urllib.request import Request, urlopen
 
-from fastapi import APIRouter, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, status
 from fastapi import Request as FastAPIRequest
 
+from aninexus_backend.api.dependencies import owner_user_id
 from aninexus_backend.config import Settings
 
 router = APIRouter(prefix="/bangumi", tags=["bangumi"])
@@ -72,8 +73,9 @@ def fetch_bangumi_calendar(settings: Settings) -> list[dict[str, Any]]:
     return payload
 
 
-def fetch_current_profile(settings: Settings) -> dict[str, Any]:
-    if not settings.bangumi_access_token:
+def fetch_current_profile(settings: Settings, *, access_token: str | None = None) -> dict[str, Any]:
+    token = access_token if access_token is not None else settings.bangumi_access_token
+    if not token:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="尚未配置 Bangumi Access Token。",
@@ -81,7 +83,7 @@ def fetch_current_profile(settings: Settings) -> dict[str, Any]:
     payload = _request_json(
         "/v0/me",
         user_agent=settings.bangumi_user_agent,
-        access_token=settings.bangumi_access_token,
+        access_token=token,
     )
     if not isinstance(payload, dict) or not payload.get("username"):
         raise HTTPException(
@@ -94,10 +96,12 @@ def fetch_current_profile(settings: Settings) -> dict[str, Any]:
 def fetch_user_collections(
     settings: Settings,
     *,
+    access_token: str | None = None,
     subject_type: int | None = None,
     collection_type: int | None = None,
 ) -> tuple[str, list[dict[str, Any]]]:
-    profile = fetch_current_profile(settings)
+    profile = fetch_current_profile(settings, access_token=access_token)
+    token = access_token if access_token is not None else settings.bangumi_access_token
     username = str(profile["username"])
     records: list[dict[str, Any]] = []
     offset = 0
@@ -111,7 +115,7 @@ def fetch_user_collections(
         payload = _request_json(
             f"/v0/users/{quote(username, safe='')}/collections?{urlencode(query)}",
             user_agent=settings.bangumi_user_agent,
-            access_token=settings.bangumi_access_token,
+            access_token=token,
         )
         if not isinstance(payload, dict) or not isinstance(payload.get("data"), list):
             raise HTTPException(
@@ -129,11 +133,16 @@ def fetch_user_collections(
 
 @router.get("/calendar")
 def get_bangumi_calendar(request: FastAPIRequest) -> list[dict[str, Any]]:
+    if not request.app.state.settings.bangumi_sync_enabled:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="追番日历暂未开放")
     return fetch_bangumi_calendar(request.app.state.settings)
 
 
 @router.get("/status")
-def get_bangumi_status(request: FastAPIRequest) -> dict[str, Any]:
+def get_bangumi_status(
+    request: FastAPIRequest,
+    _owner_id: int = Depends(owner_user_id),
+) -> dict[str, Any]:
     settings: Settings = request.app.state.settings
     if not settings.bangumi_access_token:
         return {"configured": False, "connected": False, "username": None}
