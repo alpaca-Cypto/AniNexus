@@ -101,6 +101,7 @@ export async function chatWithBackend({
     }
   }
   if (streamError) throw new Error(streamError);
+  if (!completedThreadId) throw new Error("回答传输意外中断，请重试");
   onComplete?.(completedThreadId);
 }
 

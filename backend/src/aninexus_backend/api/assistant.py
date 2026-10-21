@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 from collections.abc import Iterator
+from contextlib import closing
 from typing import Annotated, Any, Literal
 from uuid import uuid4
 
@@ -19,6 +20,7 @@ from aninexus_backend.assistant.llm import (
     request_chat_completion,
     resolve_api_url,
     resolve_chat_url,
+    stream_chat_completion,
 )
 from aninexus_backend.db import get_session
 from aninexus_backend.models import ChatMessage
@@ -297,7 +299,7 @@ def chat(
                 return
 
             for _iteration in range(6):
-                completion = request_chat_completion(
+                stream = stream_chat_completion(
                     url=chat_url,
                     api_key=api_key,
                     model=payload.model,
@@ -306,19 +308,58 @@ def chat(
                     temperature=payload.temperature,
                     max_tokens=1200,
                 )
-                choices = completion.get("choices")
-                if not isinstance(choices, list) or not choices:
-                    raise ModelRequestError("模型服务没有返回回答")
-                message = choices[0].get("message")
-                if not isinstance(message, dict):
-                    raise ModelRequestError("模型回答格式无效")
-                tool_calls = message.get("tool_calls")
-                if not isinstance(tool_calls, list) or not tool_calls:
-                    final_content = str(message.get("content") or "暂时没有可显示的回答。")
-                    yield _sse("message_chunk", {"content": final_content})
+                round_content = ""
+                pending_calls: dict[int, dict[str, Any]] = {}
+                finish_reason = None
+                with closing(stream):
+                    for chunk in stream:
+                        choices = chunk.get("choices")
+                        if choices == []:  # Some providers send a final usage-only chunk.
+                            continue
+                        if not isinstance(choices, list) or not choices:
+                            raise ModelRequestError("模型回答格式无效")
+                        choice = choices[0]
+                        delta = choice.get("delta", {})
+                        if not isinstance(delta, dict):
+                            raise ModelRequestError("模型增量格式无效")
+                        content = delta.get("content")
+                        if isinstance(content, str) and content:
+                            round_content += content
+                            final_content += content
+                            yield _sse("message_chunk", {"content": content})
+                        for fragment in delta.get("tool_calls") or []:
+                            index = fragment.get("index")
+                            if not isinstance(index, int) or index < 0:
+                                raise ModelRequestError("模型工具调用缺少有效索引")
+                            call = pending_calls.setdefault(index, {
+                                "id": "", "type": "function",
+                                "function": {"name": "", "arguments": ""},
+                            })
+                            if fragment.get("id"):
+                                call["id"] = fragment["id"]
+                            function = fragment.get("function") or {}
+                            for key in ("name", "arguments"):
+                                if isinstance(function.get(key), str):
+                                    call["function"][key] += function[key]
+                        if choice.get("finish_reason"):
+                            finish_reason = choice["finish_reason"]
+                if finish_reason not in {"stop", "tool_calls"}:
+                    raise ModelRequestError("模型输出未完整结束，请重试或缩小问题范围")
+                tool_calls = [pending_calls[index] for index in sorted(pending_calls)]
+                if not tool_calls:
+                    if not round_content:
+                        fallback = "暂时没有可显示的回答。"
+                        final_content += fallback
+                        yield _sse("message_chunk", {"content": fallback})
                     break
 
-                model_messages.append(message)
+                for call in tool_calls:
+                    if not call["id"] or not call["function"]["name"]:
+                        raise ModelRequestError("模型工具调用不完整")
+                model_messages.append({
+                    "role": "assistant", "content": round_content or None,
+                    "tool_calls": tool_calls,
+                })
                 for tool_call in tool_calls:
                     function = tool_call.get("function") if isinstance(tool_call, dict) else None
                     if not isinstance(function, dict):
@@ -332,10 +373,10 @@ def chat(
                             if isinstance(raw_arguments, str)
                             else raw_arguments
                         )
-                    except json.JSONDecodeError:
-                        arguments = {}
+                    except json.JSONDecodeError as exc:
+                        raise ModelRequestError("模型工具参数不是完整 JSON") from exc
                     if not isinstance(arguments, dict):
-                        arguments = {}
+                        raise ModelRequestError("模型工具参数必须为对象")
                     yield _sse(
                         "tool_start",
                         {"id": call_id, "name": name, "inputs": arguments},
@@ -354,8 +395,9 @@ def chat(
                         }
                     )
             else:
-                final_content = "这次查询需要的步骤过多，请缩小问题范围后再试。"
-                yield _sse("message_chunk", {"content": final_content})
+                fallback = "这次查询需要的步骤过多，请缩小问题范围后再试。"
+                final_content += fallback
+                yield _sse("message_chunk", {"content": fallback})
 
             if final_content:
                 session.add(
@@ -374,4 +416,7 @@ def chat(
             session.rollback()
             yield _sse("error", {"detail": "AI 助手暂时无法完成这次请求"})
 
-    return StreamingResponse(generate(), media_type="text/event-stream")
+    return StreamingResponse(
+        generate(), media_type="text/event-stream",
+        headers={"Cache-Control": "no-cache, no-transform", "X-Accel-Buffering": "no"},
+    )

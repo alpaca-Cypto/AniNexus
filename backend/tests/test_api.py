@@ -1114,35 +1114,27 @@ def test_assistant_read_only_tools_cover_library_search_profile_and_recommendati
 def test_assistant_chat_executes_tools_and_persists_visible_messages(monkeypatch) -> None:
     calls = 0
 
-    def fake_completion(**_kwargs):
+    def fake_stream(**kwargs):
         nonlocal calls
         calls += 1
         if calls == 1:
-            return {"choices": [{"message": {"role": "assistant", "content": "IN_SCOPE"}}]}
-        if calls == 2:
-            return {
-                "choices": [
-                    {
-                        "message": {
-                            "role": "assistant",
-                            "content": None,
-                            "tool_calls": [
-                                {
-                                    "id": "call-overview",
-                                    "type": "function",
-                                    "function": {
-                                        "name": "get_my_collection_overview",
-                                        "arguments": "{}",
-                                    },
-                                }
-                            ],
-                        }
-                    }
-                ]
-            }
-        return {"choices": [{"message": {"role": "assistant", "content": "尚未同步收藏。"}}]}
+            yield {"choices": [{"delta": {"tool_calls": [{
+                "index": 0, "id": "call-overview", "type": "function",
+                "function": {"name": "get_my_collection_overview", "arguments": "{"},
+            }]}}]}
+            yield {"choices": [{"delta": {"tool_calls": [{
+                "index": 0, "function": {"arguments": "}"},
+            }]}, "finish_reason": "tool_calls"}]}
+        else:
+            assert kwargs["messages"][-1]["role"] == "tool"
+            for content in ("尚未", "同步收藏。"):
+                yield {"choices": [{"delta": {"content": content}}]}
+            yield {"choices": [{"delta": {}, "finish_reason": "stop"}]}
 
-    monkeypatch.setattr(assistant_api, "request_chat_completion", fake_completion)
+    monkeypatch.setattr(assistant_api, "request_chat_completion", lambda **kwargs: {
+        "choices": [{"message": {"content": "IN_SCOPE"}}],
+    })
+    monkeypatch.setattr(assistant_api, "stream_chat_completion", fake_stream)
     app = create_app("sqlite+pysqlite:///:memory:", auto_create_tables=True)
     with TestClient(app) as client:
         response = client.post(
@@ -1162,7 +1154,9 @@ def test_assistant_chat_executes_tools_and_persists_visible_messages(monkeypatch
     assert response.status_code == 200
     assert "event: tool_start" in response.text
     assert "get_my_collection_overview" in response.text
-    assert "尚未同步收藏" in response.text
+    assert response.text.count("event: message_chunk") == 2
+    assert "尚未" in response.text and "同步收藏。" in response.text
+    assert response.headers["x-accel-buffering"] == "no"
     assert history.json()["messages"] == [
         {"role": "user", "content": "看看我的收藏"},
         {"role": "assistant", "content": "尚未同步收藏。"},

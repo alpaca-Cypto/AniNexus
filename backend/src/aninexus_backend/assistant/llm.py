@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+from collections.abc import Iterator
 from typing import Any
 from urllib.error import HTTPError, URLError
 from urllib.parse import urlparse
@@ -9,6 +10,53 @@ from urllib.request import Request, urlopen
 
 class ModelRequestError(RuntimeError):
     pass
+
+
+def stream_chat_completion(
+    *,
+    url: str,
+    api_key: str,
+    model: str,
+    messages: list[dict[str, Any]],
+    tools: list[dict[str, Any]],
+    temperature: float,
+    max_tokens: int,
+) -> Iterator[dict[str, Any]]:
+    """Yield provider chunks immediately; never treat a truncated stream as success."""
+    body: dict[str, Any] = {
+        "model": model, "messages": messages, "temperature": temperature,
+        "max_tokens": max_tokens, "stream": True,
+    }
+    if tools:
+        body.update(tools=tools, tool_choice="auto")
+    headers = {"Content-Type": "application/json", "Accept": "text/event-stream"}
+    if api_key:
+        headers["Authorization"] = f"Bearer {api_key}"
+    request = Request(
+        url, data=json.dumps(body, ensure_ascii=False).encode("utf-8"),
+        headers=headers, method="POST",
+    )
+    try:
+        with urlopen(request, timeout=90) as response:  # noqa: S310 - validated URL
+            data: list[str] = []
+            for raw_line in response:
+                line = raw_line.decode("utf-8").rstrip("\r\n")
+                if line.startswith("data:"):
+                    data.append(line[5:].lstrip(" "))
+                elif not line and data:
+                    event = "\n".join(data)
+                    data.clear()
+                    if event == "[DONE]":
+                        return
+                    chunk = json.loads(event)
+                    if not isinstance(chunk, dict) or "error" in chunk:
+                        raise ModelRequestError("模型流返回了错误或无效数据")
+                    yield chunk
+            raise ModelRequestError("模型输出意外中断，请重试")
+    except HTTPError as exc:
+        raise ModelRequestError(f"模型服务返回 {exc.code}") from exc
+    except (OSError, UnicodeDecodeError, json.JSONDecodeError) as exc:
+        raise ModelRequestError("模型流连接失败或数据格式无效") from exc
 
 
 DEFAULT_ENDPOINTS = {
