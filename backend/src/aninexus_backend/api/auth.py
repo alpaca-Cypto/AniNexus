@@ -14,7 +14,7 @@ from sqlalchemy import delete, select, update
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
-from aninexus_backend.api.dependencies import current_user_id
+from aninexus_backend.api.dependencies import current_user_id, owner_user_id
 from aninexus_backend.api.serializers import serialize_collection
 from aninexus_backend.auth import (
     hash_captcha,
@@ -25,6 +25,7 @@ from aninexus_backend.auth import (
     verify_password,
 )
 from aninexus_backend.db import get_session
+from aninexus_backend.invite_codes import create_invites
 from aninexus_backend.models import (
     AuthSession,
     BangumiCredential,
@@ -42,6 +43,25 @@ from aninexus_backend.rate_limit import enforce_rate_limit
 router = APIRouter(prefix="/auth", tags=["auth"])
 CAPTCHA_ALPHABET = "23456789ABCDEFGHJKLMNPQRSTUVWXYZ"
 USERNAME_PATTERN = re.compile(r"^[\w\u4e00-\u9fff]+$", re.UNICODE)
+
+
+class CreateInvitesRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+    count: int = Field(default=1, ge=1, le=50, strict=True)
+    days: int = Field(default=14, ge=1, le=365, strict=True)
+
+
+@router.post("/invite-codes", status_code=201, dependencies=[Depends(owner_user_id)])
+def generate_invite_codes(
+    payload: CreateInvitesRequest,
+    request: Request,
+    response: Response,
+    session: Annotated[Session, Depends(get_session)],
+) -> dict[str, object]:
+    enforce_rate_limit(request, "create-invites", limit=10, window_seconds=60)
+    codes, expires_at = create_invites(session, payload.count, payload.days)
+    response.headers["Cache-Control"] = "no-store"
+    return {"codes": codes, "expires_at": expires_at.replace(tzinfo=UTC).isoformat()}
 
 
 class Credentials(BaseModel):

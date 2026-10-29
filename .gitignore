@@ -229,6 +229,9 @@ node_modules/
 # Local API credentials must never be committed.
 apikey/
 
+# Local deployment inventory contains server and access details.
+docs/deployment-information-inventory.md
+
 # Generated public catalog archives belong in Releases or Git LFS after review.
 backend/data/*.jsonl.gz
 backend/data/*-match-plan.jsonl

@@ -1,0 +1,8 @@
+{$ANINEXUS_DOMAIN} {
+    encode zstd gzip
+
+    @backend_api path /api/v1 /api/v1/*
+    reverse_proxy @backend_api backend:8000
+
+    reverse_proxy frontend:3000
+}

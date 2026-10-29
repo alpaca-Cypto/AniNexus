@@ -77,6 +77,13 @@ export const APPLayout = ({
           )}
         </main>
       </div>
+      {!isPublicPreview && (
+        <footer style={{ flexShrink: 0, padding: '6px 12px', textAlign: 'center', fontSize: 12, color: token.colorTextSecondary }}>
+          <a href="https://beian.miit.gov.cn/" target="_blank" rel="noopener noreferrer" style={{ color: 'inherit' }}>
+            皖ICP备2026037333号
+          </a>
+        </footer>
+      )}
       <ToastHost />
     </div>
   );

@@ -19,7 +19,7 @@ services:
     volumes:
       - mysql_data:/var/lib/mysql
     healthcheck:
-      test: ["CMD-SHELL", "mysqladmin ping -h localhost -uroot -p$$(cat /run/secrets/mysql_root_password) --silent"]
+      test: ["CMD-SHELL", "mysqladmin ping -h 127.0.0.1 -uroot -p$$(cat /run/secrets/mysql_root_password) --silent"]
       interval: 10s
       timeout: 5s
       retries: 12
@@ -33,6 +33,9 @@ services:
       DATABASE_USER: aninexus
       DATABASE_PASSWORD_FILE: /run/secrets/mysql_password
       AUTO_CREATE_TABLES: "false"
+      # Public API traffic reaches FastAPI directly from Caddy on the private
+      # Compose network; Uvicorn uses Caddy's X-Forwarded-For for per-client limits.
+      FORWARDED_ALLOW_IPS: "*"
       CATALOG_SOURCE_MODE: ${CATALOG_SOURCE_MODE:-mixed}
       # The owner-only HTTP loopback preview uses false. Set true with HTTPS.
       SESSION_COOKIE_SECURE: ${SESSION_COOKIE_SECURE:-false}
@@ -70,6 +73,24 @@ services:
       interval: 10s
       timeout: 5s
       retries: 12
+
+  caddy:
+    image: caddy:2-alpine
+    profiles: ["public"]
+    restart: unless-stopped
+    environment:
+      ANINEXUS_DOMAIN: ${ANINEXUS_DOMAIN:-localhost}
+    ports:
+      - "80:80"
+      - "443:443"
+      - "443:443/udp"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    depends_on:
+      frontend:
+        condition: service_healthy
 
   db-migrate:
     build: ./backend
@@ -122,3 +143,5 @@ secrets:
 
 volumes:
   mysql_data:
+  caddy_data:
+  caddy_config:

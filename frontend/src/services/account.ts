@@ -37,7 +37,16 @@ export interface CollectionExport {
   collections: unknown[];
 }
 
+export interface GeneratedInvites {
+  codes: string[];
+  expires_at: string;
+}
+
 export const accountService = {
+  createInvites: (count: number, days: number) => request<GeneratedInvites>('/auth/invite-codes', {
+    method: 'POST',
+    body: JSON.stringify({ count, days }),
+  }),
   config: () => request<{ invite_required: boolean; bangumi_sync_enabled: boolean }>('/auth/config'),
   captcha: () => request<CaptchaChallenge>('/auth/captcha', { method: 'POST' }),
   login: (credentials: Credentials) =>

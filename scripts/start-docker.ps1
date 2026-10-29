@@ -44,23 +44,46 @@ function Wait-DockerEngine([string]$DockerPath, [int]$TimeoutSeconds) {
 }
 
 function Get-SecretSource([string]$EnvironmentFile, [string]$Name) {
-    $value = [Environment]::GetEnvironmentVariable($Name)
-    if (-not $value) {
-        foreach ($line in Get-Content -LiteralPath $EnvironmentFile) {
-            if ($line -match "^\s*$Name\s*=\s*(.*)$") {
-                $value = $Matches[1]
-                break
-            }
+    $configuredValue = $null
+    foreach ($line in Get-Content -LiteralPath $EnvironmentFile) {
+        if ($line -match "^\s*$Name\s*=\s*(.*)$") {
+            $configuredValue = $Matches[1]
+            break
         }
     }
-    if (-not $value) { throw "$Name is missing from the production environment." }
-    $path = $value.Trim().Trim('"', "'")
-    if (-not [IO.Path]::IsPathRooted($path)) { throw "$Name must be an absolute path." }
-    $file = Get-Item -LiteralPath $path -ErrorAction Stop
-    if ($file -isnot [IO.FileInfo] -or $file.Length -lt 1 -or ($file.Attributes -band [IO.FileAttributes]::ReparsePoint)) {
-        throw "$Name must point to a nonempty regular file."
+    $candidates = @(
+        [PSCustomObject]@{ Value = [Environment]::GetEnvironmentVariable($Name); Source = "process environment" },
+        [PSCustomObject]@{ Value = $configuredValue; Source = $EnvironmentFile }
+    )
+    $problems = @()
+    foreach ($candidate in $candidates) {
+        if (-not $candidate.Value) { continue }
+        $path = $candidate.Value.Trim().Trim('"', "'")
+        if (-not [IO.Path]::IsPathRooted($path)) {
+            $problems += "$($candidate.Source): path is not absolute"
+            continue
+        }
+        try {
+            $file = Get-Item -LiteralPath $path -ErrorAction Stop
+        }
+        catch {
+            $problems += "$($candidate.Source): cannot access '$path' ($($_.Exception.Message))"
+            continue
+        }
+        $reason = if ($file -isnot [IO.FileInfo]) { "the path is a directory, not a password file" }
+            elseif ($file.Attributes -band [IO.FileAttributes]::ReparsePoint) { "links and reparse points are not supported" }
+            elseif ($file.Length -lt 1) { "the password file is empty" }
+        if ($reason) {
+            $problems += "$($candidate.Source): '$path' is invalid ($reason)"
+            continue
+        }
+        if ($problems.Count -gt 0) {
+            Write-Warning "${Name}: using the valid path from $($candidate.Source); the earlier source was invalid."
+        }
+        return $file.FullName
     }
-    return $file.FullName
+    if ($problems.Count -eq 0) { throw "$Name is missing from the production environment." }
+    throw "$Name has no accessible password file: $($problems -join '; ')"
 }
 
 function Test-SecretVolume([string]$DockerPath, [string]$VolumeName) {
@@ -190,6 +213,8 @@ try {
     if (-not (Test-Path -LiteralPath $envFile)) {
         throw "Production environment file is missing: $envFile"
     }
+    Get-SecretSource -EnvironmentFile $envFile -Name "ANINEXUS_MYSQL_PASSWORD_FILE" | Out-Null
+    Get-SecretSource -EnvironmentFile $envFile -Name "ANINEXUS_MYSQL_ROOT_PASSWORD_FILE" | Out-Null
     Write-Host "Compose file: $composeFile"
     Write-Host "Local secrets override: $localSecretsComposeFile"
     Write-Host "Environment file: $envFile"

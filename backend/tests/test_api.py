@@ -68,7 +68,9 @@ def test_personal_data_is_isolated_between_real_sessions(monkeypatch) -> None:
         owner_id, owner_token = register(client, "owner_test")
         guest_id, guest_token = register(client, "guest_test")
         with app.state.session_factory.begin() as session:
-            subject = Subject(source="bangumi", source_id="private-test", subject_type=2, name="Test")
+            subject = Subject(
+                source="bangumi", source_id="private-test", subject_type=2, name="Test"
+            )
             session.add(subject)
             session.flush()
             subject_id = subject.id
@@ -81,7 +83,9 @@ def test_personal_data_is_isolated_between_real_sessions(monkeypatch) -> None:
                     ),
                     UpdateReminder(user_id=owner_id, subject_id=subject_id),
                     UserProfile(user_id=owner_id, avatar_mime="image/png", avatar_data=b"private"),
-                    ChatMessage(user_id=owner_id, thread_id="private-thread", role="user", content="private"),
+                    ChatMessage(
+                        user_id=owner_id, thread_id="private-thread", role="user", content="private"
+                    ),
                 ]
             )
 
@@ -116,7 +120,8 @@ def test_personal_data_is_isolated_between_real_sessions(monkeypatch) -> None:
         assert client.get("/api/v1/schedules").json()["total"] == 1
         assert client.get("/api/v1/reminders").json()["total"] == 1
         assert client.get("/api/v1/profile/avatar").content == b"private"
-        assert client.get("/api/v1/chat/history?thread_id=private-thread").json()["messages"][0]["content"] == "private"
+        history = client.get("/api/v1/chat/history?thread_id=private-thread").json()
+        assert history["messages"][0]["content"] == "private"
         assert guest_id != owner_id and guest_token != owner_token
 
 
@@ -134,7 +139,7 @@ def test_invites_owner_only_ai_and_disabled_shared_bangumi_sync(monkeypatch) -> 
     def registration_payload(client: TestClient, invite_code: str) -> dict[str, str]:
         captcha = client.post("/api/v1/auth/captcha").json()
         return {
-            "username": f"user{invite_code[:4]}",
+            "username": f"user{token_digest(invite_code)[:8]}",
             "password": "Password1!",
             "captcha_id": captcha["captcha_id"],
             "captcha_code": "AAAAA",
@@ -164,16 +169,35 @@ def test_invites_owner_only_ai_and_disabled_shared_bangumi_sync(monkeypatch) -> 
         )
         assert owner.status_code == 201
         assert owner.json()["user"]["is_owner"] is True
+        for invalid in ({"count": 0}, {"count": 51}, {"days": 0}, {"days": 366}, {"count": 1.5}):
+            assert client.post("/api/v1/auth/invite-codes", json=invalid).status_code == 422
+        generated = client.post("/api/v1/auth/invite-codes", json={"count": 2, "days": 7})
+        assert generated.status_code == 201
+        assert generated.headers["cache-control"] == "no-store"
+        codes = generated.json()["codes"]
+        assert len(codes) == len(set(codes)) == 2
+        expiry = datetime.fromisoformat(generated.json()["expires_at"])
+        assert timedelta(days=6) < expiry - datetime.now(UTC) <= timedelta(days=7)
+        with app.state.session_factory() as session:
+            for code in codes:
+                assert session.get(InviteCode, code) is None
+                saved = session.get(InviteCode, token_digest(code))
+                assert saved is not None and saved.used_at is None
+                assert saved.expires_at == expiry.replace(tzinfo=None)
         assert client.get("/api/v1/assistant/config").status_code == 200
         assert client.post(
             "/api/v1/auth/register", json=registration_payload(client, "owner-invite")
         ).status_code == 403
 
         guest = client.post(
-            "/api/v1/auth/register", json=registration_payload(client, "guest-invite")
+            "/api/v1/auth/register", json=registration_payload(client, codes[0])
         )
         assert guest.status_code == 201
         assert guest.json()["user"]["is_owner"] is False
+        assert client.post("/api/v1/auth/invite-codes", json={}).status_code == 403
+        assert client.post(
+            "/api/v1/auth/register", json=registration_payload(client, codes[0])
+        ).status_code == 403
         assert client.get("/api/v1/dashboard/stats").status_code == 200
         assert client.get("/api/v1/schedules").status_code == 200
         assert client.get("/api/v1/assistant/config").status_code == 403
@@ -182,6 +206,8 @@ def test_invites_owner_only_ai_and_disabled_shared_bangumi_sync(monkeypatch) -> 
         assert client.post(
             "/api/v1/collections/sync/bgm", json={"subject_type": 2}
         ).status_code == 404
+        client.cookies.clear()
+        assert client.post("/api/v1/auth/invite-codes", json={}).status_code == 401
 
 
 def test_collection_sorting_is_global_across_pages() -> None:
@@ -189,7 +215,10 @@ def test_collection_sorting_is_global_across_pages() -> None:
     with TestClient(app) as client:
         with app.state.session_factory.begin() as session:
             subjects = [
-                Subject(source="bangumi", source_id=str(i), subject_type=2, name=f"Anime {i}", score=score)
+                Subject(
+                    source="bangumi", source_id=str(i), subject_type=2,
+                    name=f"Anime {i}", score=score,
+                )
                 for i, score in ((1, 7), (2, 9), (3, 8))
             ]
             session.add_all(subjects)
@@ -231,7 +260,9 @@ def test_export_and_account_deletion_remove_personal_data(monkeypatch) -> None:
         assert registered.status_code == 201
         user_id = registered.json()["user"]["id"]
         with app.state.session_factory.begin() as session:
-            subject = Subject(source="bangumi", source_id="delete-test", subject_type=2, name="Test")
+            subject = Subject(
+                source="bangumi", source_id="delete-test", subject_type=2, name="Test"
+            )
             session.add(subject)
             session.flush()
             session.add(Collection(user_id=user_id, subject_id=subject.id, collection_type=1))
@@ -721,13 +752,15 @@ def test_saved_bangumi_token_survives_app_restart(monkeypatch, tmp_path) -> None
 
     monkeypatch.setattr(collections_api, "fetch_user_collections", fetch)
     database_url = f"sqlite+pysqlite:///{(tmp_path / 'app.db').as_posix()}"
-    with TestClient(create_app(database_url, auto_create_tables=True, testing_auth_bypass=True)) as client:
+    app = create_app(database_url, auto_create_tables=True, testing_auth_bypass=True)
+    with TestClient(app) as client:
         assert client.put(
             "/api/v1/collections/import/bangumi/token",
             json={"access_token": "reusable-token"},
         ).status_code == 200
 
-    with TestClient(create_app(database_url, auto_create_tables=True, testing_auth_bypass=True)) as client:
+    app = create_app(database_url, auto_create_tables=True, testing_auth_bypass=True)
+    with TestClient(app) as client:
         status_response = client.get("/api/v1/collections/import/bangumi/token")
         assert status_response.json() == {"configured": True, "username": "bangumi-user"}
         imported = client.post("/api/v1/collections/import/bangumi", json={})

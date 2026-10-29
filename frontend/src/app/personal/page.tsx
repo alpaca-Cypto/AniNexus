@@ -5,6 +5,7 @@ import { useEffect, useState } from "react";
 import { ArrowRight, BookMarked, Bot, CalendarDays, RefreshCw } from "lucide-react";
 import { useOwnerStatus } from "@/components/auth/useOwnerStatus";
 import { request } from "@/services/client";
+import { InviteGenerator } from "@/components/auth/InviteGenerator";
 import "./personal.css";
 
 type LibraryStats = { total: number; anime: number; books: number; games: number };
@@ -66,6 +67,7 @@ export default function PersonalPage() {
             <ArrowRight size={19} aria-hidden="true" />
           </Link>}
         </nav>
+        {user?.is_owner && <InviteGenerator key={user.id} />}
       </div>
     </div>
   );

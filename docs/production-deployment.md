@@ -1,12 +1,13 @@
 # 生产模式部署与所有者验收
 
-当前的 `compose.production.yaml` 只把前端绑定到宿主机的 `127.0.0.1:3000`。它用于无域名阶段的所有者验收，不是公开访问入口。受邀用户上线前仍须完成 `plan.md` 的权限、备份、HTTPS、内容使用范围和主线验收。
+`compose.production.yaml` 默认只把前端绑定到宿主机的 `127.0.0.1:3000`，用于所有者本机验收。公网入口由可选的 Caddy `public` profile 提供：它监听 80/443，将 `/api/v1` 请求转发到 Compose 内部的 `backend:8000`，其余请求转发到 `frontend:3000`，并自动申请和续期证书。FastAPI 信任私有 Compose 网络中的代理转发头来取得访客 IP，因此不要将后端端口发布到宿主机或公网；若以后增加其他不可信容器到该网络，应改为只信任 Caddy 的固定地址。受邀用户上线前仍须完成 `plan.md` 的权限、备份、HTTPS、内容使用范围和主线验收。
 
 ## 准备
 
 1. 在仓库外准备两个仅部署者可读取的文本文件，分别存放应用数据库密码与 MySQL root 密码。文件内容只包含密码和结尾换行；密码不要放进 Git、Docker 镜像或命令行参数。
 2. 将这两个文件的绝对路径分别设为 `ANINEXUS_MYSQL_PASSWORD_FILE` 和 `ANINEXUS_MYSQL_ROOT_PASSWORD_FILE`。Compose 在变量缺失时会拒绝启动。不要复用开发环境的默认密码。
 3. 在目标机器上安装 Docker Engine 与 Compose 插件，并确认所选主机能够承受 Next.js、FastAPI 和 MySQL 同机运行。
+4. 公网部署时，将域名的 A 记录指向服务器公网 IPv4；只有服务器确实启用了公网 IPv6 时才添加 AAAA 记录。服务器和云防火墙允许入站 TCP 80/443；若启用 HTTP/3，也允许 UDP 443。不要将 MySQL、FastAPI 或 3000 端口开放到公网。
 
 Windows 本机预览可用 `python ops/prepare_local_secrets.py <仓库外目录>` 生成两份独立随机密码文件；脚本拒绝覆盖既有文件，也不会打印密码。目录应位于仅当前用户可读的位置，例如个人 `AppData/Local` 下。随后在启动 Compose 的 PowerShell 会话中设置两个 `ANINEXUS_MYSQL_*_FILE` 路径变量。正式服务器应在其本机单独生成凭据，不复用预览密码。
 
@@ -20,9 +21,28 @@ docker compose -f compose.production.yaml config --quiet
 
 本机站长注册后，可把上述两个绝对路径和经数据库核对的 `OWNER_USER_ID` 写入仓库根目录的 `.env.production.local`，例如 `OWNER_USER_ID=1`（这个数字只是示例）。该文件已被 Git 忽略，且**不应包含密码明文**。后续使用 `docker compose --env-file .env.production.local -f compose.production.yaml ...`；不加 `--env-file` 时，本机另行设置的环境变量必须完整，否则 Compose 会拒绝启动。迁移到另一台机器时要重新生成密码、核对站长 ID，并创建那台机器自己的配置文件。
 
+正式服务器接入公网前，在该服务器的 `.env.production.local` 中另外设置真实域名和 HTTPS Cookie：
+
+```dotenv
+ANINEXUS_DOMAIN=你的域名
+SESSION_COOKIE_SECURE=true
+```
+
+先确认 DNS 已解析到服务器且 80/443 可从公网访问，再启用 Caddy：
+
+```sh
+docker compose --env-file .env.production.local --profile public -f compose.production.yaml up -d --build
+docker compose --env-file .env.production.local --profile public -f compose.production.yaml ps
+docker compose --env-file .env.production.local --profile public -f compose.production.yaml logs caddy
+```
+
+Caddy 的证书和配置保存在 `caddy_data`、`caddy_config` 卷中；不要在常规升级时删除这些卷。未指定 `--profile public` 时 Caddy 不会启动，因此 Windows 本机 HTTP 预览仍使用 `SESSION_COOKIE_SECURE=false` 和 `127.0.0.1:3000`。公网 HTTPS 验收时检查证书、登录、刷新、退出及会话 Cookie 的 `Secure`、`HttpOnly`、`SameSite=Lax` 属性。
+
 Windows 本机预览使用 `start.cmd`。Docker Desktop 在受限目录 ACL 下可能把密码文件路径挂成目录；启动脚本会从宿主文件复制密码到两个 Docker 私有卷，再叠加 `compose.production.local-secrets.yaml`。MySQL 卷包含应用密码和 root 密码，后端及迁移卷仅包含应用密码；运行容器只读挂载这些卷。原始文件和数据库卷不会改动，密码卷在停止容器后仍保留。手动运行本机 Compose 命令时，也要同时指定 `-f compose.production.local-secrets.yaml`；Linux 服务器继续只使用基础生产 Compose 文件。
 
 ## 首次创建数据库与启动
+
+站长登录后，可从头像菜单的「生成邀请码」进入「我的空间」生成邀请码。支持每批 1–50 个、有效期 1–365 天，默认为 1 个、14 天。每个码仅可注册一个普通账号；生成后请及时复制并私下交付，离开或刷新页面后无法再次查看明文。首次站长注册仍使用下方命令行方式生成邀请码。
 
 在仓库根目录执行。Windows 本机双击 `start.cmd`；以下命令用于其他部署环境：
 

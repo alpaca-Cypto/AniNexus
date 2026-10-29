@@ -15,3 +15,6 @@
 .aninexus-shell[data-mode="light"]{--nexus-bg:oklch(.975 .008 350);--nexus-surface:oklch(.995 .003 350);--nexus-raised:oklch(1 0 0);--nexus-text:oklch(.24 .035 342);--nexus-muted:oklch(.47 .025 342);--nexus-line:oklch(.87 .018 342);--nexus-primary:oklch(.58 .22 354);--nexus-primary-dark:oklch(.44 .18 354);--nexus-primary-soft:oklch(.93 .04 354);--nexus-accent:oklch(.75 .15 70)}
 .aninexus-shell[data-mode="dark"]{--nexus-bg:oklch(.18 .018 342);--nexus-surface:oklch(.22 .02 342);--nexus-raised:oklch(.25 .02 342);--nexus-text:oklch(.94 .01 342);--nexus-muted:oklch(.72 .02 342);--nexus-line:oklch(.34 .025 342);--nexus-primary:oklch(.7 .18 354);--nexus-primary-dark:oklch(.8 .13 354);--nexus-primary-soft:oklch(.3 .07 354);--nexus-accent:oklch(.77 .13 70)}
 .aninexus-shell[data-mode="dark"] .search-portal{--search-bg:var(--nexus-bg);--search-surface:var(--nexus-surface);--search-raised:var(--nexus-raised);--search-text:var(--nexus-text);--search-muted:var(--nexus-muted);--search-line:var(--nexus-line);--search-primary:var(--nexus-primary);--search-dark:var(--nexus-primary-dark);--search-soft:var(--nexus-primary-soft);--search-accent:var(--nexus-accent)}
+
+/* Keep the public filing link clear of the mobile navigation. */
+@media(max-width:900px){.site-header__nav{bottom:max(44px,calc(32px + env(safe-area-inset-bottom)))}.nexus-workspace-page{padding-bottom:108px}}

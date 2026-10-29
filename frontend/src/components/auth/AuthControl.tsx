@@ -192,6 +192,10 @@ export function AuthControl() {
       label: <Link href="/personal">我的空间</Link>,
     },
     ...(user?.is_owner ? [{
+      key: 'invites',
+      icon: <KeyRound size={15} />,
+      label: <Link href="/personal#invite-codes">生成邀请码</Link>,
+    }, {
       key: 'ai-settings',
       icon: <UserRound size={15} />,
       label: <Link href="/personal/ai">AI 角色设置</Link>,
